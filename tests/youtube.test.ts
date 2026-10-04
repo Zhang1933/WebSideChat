@@ -95,14 +95,22 @@ describe('pickCaptionTrack', () => {
     kind,
   });
 
-  it('中文手动 > 中文自动 > 其他手动 > 第一条', () => {
+  it('preferLangs 命中的语言优先（中文 > 手动/asr 之分）', () => {
     const tracks = [t('en-asr', 'en', 'asr'), t('en-manual', 'en'), t('zh-asr', 'zh', 'asr'), t('zh-manual', 'zh')];
-    expect(pickCaptionTrack(tracks)?.baseUrl).toBe('zh-manual');
-    expect(pickCaptionTrack([t('en-asr', 'en', 'asr'), t('zh-asr', 'zh', 'asr')])?.baseUrl).toBe('zh-asr');
-    expect(pickCaptionTrack([t('en-asr', 'en', 'asr'), t('en-manual', 'en')])?.baseUrl).toBe('en-manual');
-    expect(pickCaptionTrack([t('first'), t('en-asr', 'en', 'asr')])?.baseUrl).toBe('first');
+    expect(pickCaptionTrack(tracks, { preferLangs: ['zh'] })?.baseUrl).toBe('zh-manual');
+    expect(
+      pickCaptionTrack([t('en-asr', 'en', 'asr'), t('zh-asr', 'zh', 'asr')], { preferLangs: ['zh'] })?.baseUrl,
+    ).toBe('zh-asr');
   });
-  it('空列表返回 null', () => {
+  it('语言未命中时取默认轨道（多音轨视频的原声语言，避免选到配音字幕）', () => {
+    const tracks = [t('ar-asr', 'ar', 'asr'), t('en-asr', 'en', 'asr')];
+    expect(pickCaptionTrack(tracks, { defaultIndex: 1, preferLangs: ['zh'] })?.baseUrl).toBe('en-asr');
+    // 无默认标记 → 手动轨道优先，否则第一条
+    expect(pickCaptionTrack([t('en-asr', 'en', 'asr'), t('en-manual', 'en')], { preferLangs: ['zh'] })?.baseUrl).toBe('en-manual');
+    expect(pickCaptionTrack([t('ar-first', 'ar', 'asr'), t('en', 'en')], { preferLangs: ['zh'] })?.baseUrl).toBe('en');
+  });
+  it('无任何偏好：手动轨道 > 第一条；空列表返回 null', () => {
+    expect(pickCaptionTrack([t('first'), t('en-asr', 'en', 'asr')])?.baseUrl).toBe('first');
     expect(pickCaptionTrack([])).toBeNull();
   });
 });

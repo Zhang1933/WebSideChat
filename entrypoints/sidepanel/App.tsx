@@ -1,9 +1,10 @@
 import { AlertCircle, Globe } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ExtractViewerDialog } from '@/components/ExtractViewerDialog';
 import { Header } from '@/components/Header';
 import { PageBar } from '@/components/PageBar';
 import { UnifiedChat } from '@/components/chat/UnifiedChat';
-import { CONTEXT_COMPRESSED_MARKER, hasSummary, withMessage } from '@/lib/conversation';
+import { CONTEXT_COMPRESSED_MARKER, hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
 import { compressThreshold, estimateConversationTokens } from '@/lib/context';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
 import { compressHistory, describeLlmError, streamChat } from '@/lib/llm/client';
@@ -54,6 +55,8 @@ export default function App() {
   /** 按 pageKey 隔离的进行中流（值为已生成的流式文本）：多个标签页可并行独立生成 */
   const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  /** 调试模式：查看提取内容弹窗 */
+  const [contentViewerOpen, setContentViewerOpen] = useState(false);
   // 每个页面独立的流控制器与轮次守卫（跨页互不影响）
   const controllersRef = useRef<Map<string, AbortController>>(new Map());
   const turnIdsRef = useRef<Map<string, number>>(new Map());
@@ -180,10 +183,15 @@ export default function App() {
               void persistConversation(fin);
               if (isViewing()) setConversation(fin);
             } else {
-              // 一无所获：回滚本轮用户消息，便于重试
+              // 一无所获：保留用户提问（不回滚），补占位回复维持角色交替
+              const fin = withMessage(convNow, {
+                role: 'assistant',
+                content: err.kind === 'aborted' ? '*（已停止，未生成内容）*' : '*（未生成内容，请重试）*',
+              });
+              void persistConversation(fin);
               if (isViewing()) {
-                setConversation(base);
-                setError(describeLlmError(err));
+                setConversation(fin);
+                if (err.kind !== 'aborted') setError(describeLlmError(err));
               }
             }
           },
@@ -258,14 +266,23 @@ export default function App() {
   }, [conversation, settings, runTurn, extractAndSummarize]);
 
   const sendQuestion = useCallback(
-    (text: string) => {
+    (text: string, editFrom?: number) => {
       if (!conversation) {
         // 首次提问：先静默提取正文，再带着问题进入对话
         void extractAndSummarize(text);
         return;
       }
       if (conversation.pageKey in streamTexts) return;
-      void runTurn('chat', text, conversation);
+      let base = conversation;
+      if (editFrom != null) {
+        // 编辑重发（Gemini 交互）：从被编辑的用户消息处截断，保留之前的对话
+        const abs = visibleStartIndex(conversation) + editFrom;
+        const target = conversation.messages[abs];
+        if (target?.role === 'user') {
+          base = { ...conversation, messages: conversation.messages.slice(0, abs) };
+        }
+      }
+      void runTurn('chat', text, base);
     },
     [conversation, streamTexts, runTurn, extractAndSummarize],
   );
@@ -290,7 +307,15 @@ export default function App() {
         title={tab.title}
         conversation={conversation}
         extracting={extracting}
+        debug={settings.debugMode}
+        onViewContent={() => setContentViewerOpen(true)}
         onReextract={reextract}
+      />
+
+      <ExtractViewerDialog
+        conversation={conversation}
+        open={contentViewerOpen}
+        onOpenChange={setContentViewerOpen}
       />
 
       {error && (

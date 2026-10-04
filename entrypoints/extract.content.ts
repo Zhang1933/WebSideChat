@@ -10,6 +10,7 @@ import {
   parseTimedTextXml,
   pickCaptionTrack,
   stripFmtParam,
+  type TracklistRenderer,
 } from '@/lib/youtube';
 import type { ExtractResult } from '@/types';
 
@@ -62,7 +63,7 @@ async function fetchTranscript(baseUrl: string): Promise<string> {
 }
 
 interface PlayerLike {
-  captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: unknown[] } } | undefined;
+  captions?: { playerCaptionsTracklistRenderer?: TracklistRenderer } | undefined;
   videoDetails?: { title?: string; author?: string } | undefined;
 }
 
@@ -85,6 +86,8 @@ async function extractYouTube(): Promise<ExtractResult> {
     let tracks: unknown = null;
     let details: { title?: string; author?: string } | undefined;
     let playabilityIssue: string | null = null;
+    // 多音轨/自动配音视频：默认轨道 = 原声语言的字幕
+    let defaultTrackIndex: number | undefined;
     const apiKey = extractInnertubeApiKey(html);
     if (apiKey) {
       try {
@@ -103,7 +106,9 @@ async function extractYouTube(): Promise<ExtractResult> {
             | null;
           playabilityIssue = checkPlayability(data?.playabilityStatus);
           if (!playabilityIssue) {
-            tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? null;
+            const renderer = data?.captions?.playerCaptionsTracklistRenderer;
+            tracks = renderer?.captionTracks ?? null;
+            defaultTrackIndex = renderer?.audioTracks?.[0]?.defaultCaptionTrackIndex;
             details = data?.videoDetails;
           }
         }
@@ -116,13 +121,20 @@ async function extractYouTube(): Promise<ExtractResult> {
     if (!Array.isArray(tracks) || tracks.length === 0) {
       const player = extractPlayerResponse(html) as PlayerLike | null;
       if (!details) details = player?.videoDetails;
-      tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? null;
+      const renderer = player?.captions?.playerCaptionsTracklistRenderer;
+      tracks = renderer?.captionTracks ?? null;
+      if (defaultTrackIndex == null) {
+        defaultTrackIndex = renderer?.audioTracks?.[0]?.defaultCaptionTrackIndex;
+      }
     }
 
     if (!Array.isArray(tracks) || tracks.length === 0) {
       return youtubeError(playabilityIssue ?? '该视频没有可用字幕（纯音乐或未开启字幕），无法总结');
     }
-    const track = pickCaptionTrack(tracks as Parameters<typeof pickCaptionTrack>[0]);
+    const track = pickCaptionTrack(tracks as Parameters<typeof pickCaptionTrack>[0], {
+      defaultIndex: defaultTrackIndex,
+      preferLangs: ['zh'],
+    });
     if (!track?.baseUrl) return youtubeError('字幕轨道信息无效');
 
     // 剥掉内嵌 fmt 参数再拼接；exp=xpe = 需要 pot 令牌的标记

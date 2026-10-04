@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { PROVIDER_PRESETS } from '@/config/presets';
 import {
   currentProviderIdItem,
@@ -201,6 +202,19 @@ export function ProvidersPage({
                         <SelectItem value="auto">跟随页面语言</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <Label htmlFor="debug-mode">调试模式</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        顶栏"已提取 N 字符"变为可点击，查看实际送入模型的提取内容
+                      </p>
+                    </div>
+                    <Switch
+                      id="debug-mode"
+                      checked={settings.debugMode ?? false}
+                      onCheckedChange={(v) => patchSettings({ debugMode: v })}
+                    />
                   </div>
                 </div>
               </>

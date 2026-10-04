@@ -5,6 +5,13 @@ export interface CaptionTrack {
   languageCode?: string;
   /** 'asr' = 自动生成；缺省 = 手动上传（质量更高） */
   kind?: string;
+  vssId?: string;
+}
+
+/** playerCaptionsTracklistRenderer 的形状（含多音轨视频的默认轨道标记） */
+export interface TracklistRenderer {
+  captionTracks?: CaptionTrack[];
+  audioTracks?: { defaultCaptionTrackIndex?: number; captionTrackIndices?: number[] }[];
 }
 
 /** 是否为 YouTube 观看页（watch / shorts；m.youtube.com 也算） */
@@ -97,12 +104,35 @@ export function extractPlayerResponse(html: string): Record<string, unknown> | n
   return null;
 }
 
-/** 从字幕轨道列表选择：中文 > 手动上传（非 asr）；同分取第一条 */
-export function pickCaptionTrack(tracks: CaptionTrack[]): CaptionTrack | null {
+/**
+ * 从字幕轨道列表选择，优先级：
+ * ① preferLangs 命中的语言（按序，如 zh）——存在中文轨道则优先
+ * ② defaultIndex 指向的默认轨道（多音轨/自动配音视频的**原声语言**标记，
+ *    来自 audioTracks[].defaultCaptionTrackIndex，避免英文视频选到配音字幕）
+ * ③ 手动上传（非 asr）的第一条
+ * ④ 第一条
+ */
+export function pickCaptionTrack(
+  tracks: CaptionTrack[],
+  opts: { defaultIndex?: number; preferLangs?: string[] } = {},
+): CaptionTrack | null {
   if (tracks.length === 0) return null;
-  const score = (t: CaptionTrack) =>
-    (t.languageCode?.toLowerCase().startsWith('zh') ? 2 : 0) + (t.kind ? 0 : 1);
-  return [...tracks].sort((a, b) => score(b) - score(a))[0] ?? null;
+  const prefer = (opts.preferLangs ?? []).map((l) => l.toLowerCase());
+
+  for (const lang of prefer) {
+    const hits = tracks.filter((t) => t.languageCode?.toLowerCase().startsWith(lang));
+    if (hits.length > 0) {
+      // 同一语言内手动上传（非 asr）优先
+      return hits.find((t) => !t.kind) ?? hits[0]!;
+    }
+  }
+
+  const defIdx = opts.defaultIndex;
+  if (defIdx != null && defIdx >= 0 && defIdx < tracks.length) {
+    return tracks[defIdx]!;
+  }
+
+  return tracks.find((t) => !t.kind) ?? tracks[0] ?? null;
 }
 
 /** 秒 → [HH:MM:SS] 时间戳（含小时，超长视频不歧义） */

@@ -1,4 +1,4 @@
-import { Loader2, Send, Sparkles, Square } from 'lucide-react';
+import { Loader2, Pencil, Send, Sparkles, Square } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,18 +35,26 @@ export function UnifiedChat({
   disabled: boolean;
   /** 点击快捷气泡「帮我总结网页内容」 */
   onPresetSummary: () => void;
-  onSend: (text: string) => void;
+  /** editFrom：编辑重发时，被编辑消息在 visibleMessages 中的下标（从该条截断） */
+  onSend: (text: string, editFrom?: number) => void;
   onStop: () => void;
 }) {
   const [input, setInput] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // 贴底跟随：只有用户停留在底部附近时才自动滚动，翻阅历史不被拽回
   const stickToBottomRef = useRef(true);
+  /** 编辑中的消息（visibleMessages 下标）：发送时从该条截断重新提问（Gemini 交互） */
+  const [editingFrom, setEditingFrom] = useState<number | null>(null);
 
   const visibleMessages = conversation
     ? conversation.messages.slice(visibleStartIndex(conversation))
     : [];
   const showPreset = visibleMessages.length === 0 && !streaming;
+  /** 最后一条可编辑的用户消息（排除压缩标记）的下标 */
+  const lastUserIndex = visibleMessages.findLastIndex(
+    (m) => m.role === 'user' && m.content !== CONTEXT_COMPRESSED_MARKER,
+  );
 
   function handleListScroll() {
     const el = listRef.current;
@@ -65,7 +73,22 @@ export function UnifiedChat({
     const text = input.trim();
     if (!text || streaming || disabled) return;
     setInput('');
-    onSend(text);
+    const editFrom = editingFrom;
+    setEditingFrom(null);
+    onSend(text, editFrom ?? undefined);
+  }
+
+  /** 点击最后一条用户消息的编辑按钮：内容放回输入框并聚焦（Gemini 交互） */
+  function startEdit(index: number, content: string) {
+    setInput(content);
+    setEditingFrom(index);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(content.length, content.length);
+      }
+    });
   }
 
   return (
@@ -93,7 +116,15 @@ export function UnifiedChat({
             visibleMessages[i - 1]!.content === CONTEXT_COMPRESSED_MARKER;
           return (
             <Fragment key={i}>
-              <MessageBubble message={m} muted={isDigest} />
+              <MessageBubble
+                message={m}
+                muted={isDigest}
+                onEdit={
+                  i === lastUserIndex && !streaming
+                    ? () => startEdit(i, m.content)
+                    : undefined
+                }
+              />
             </Fragment>
           );
         })}
@@ -128,8 +159,26 @@ export function UnifiedChat({
           </div>
         ))}
 
+      {editingFrom != null && (
+        <div className="flex items-center gap-1.5 border-t px-3 py-1 text-[11px] text-muted-foreground">
+          <Pencil className="size-3" />
+          正在编辑此消息，Enter 重新发送（之后的对话将被移除）
+          <button
+            type="button"
+            className="ml-auto underline hover:text-foreground"
+            onClick={() => {
+              setEditingFrom(null);
+              setInput('');
+            }}
+          >
+            取消
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2 border-t p-2.5">
         <Textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {

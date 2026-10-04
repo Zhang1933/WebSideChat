@@ -9,12 +9,17 @@ export function PageBar({
   title,
   conversation,
   extracting,
+  debug,
+  onViewContent,
   onReextract,
 }: {
   url: string | null;
   title: string | null;
   conversation: Conversation | null;
   extracting: boolean;
+  /** 调试模式：字符徽标可点击查看提取内容 */
+  debug?: boolean;
+  onViewContent: () => void;
   onReextract: () => void;
 }) {
   let domain = '';
@@ -35,10 +40,22 @@ export function PageBar({
       </div>
       {conversation && (
         <>
-          <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
-            已提取 {conversation.content.length.toLocaleString()} 字符
-            {conversation.truncated ? '（截断）' : ''}
-          </Badge>
+          {debug ? (
+            <button
+              type="button"
+              onClick={onViewContent}
+              title="查看提取内容（调试）"
+              className="shrink-0 rounded-full border border-dashed px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              已提取 {conversation.content.length.toLocaleString()} 字符
+              {conversation.truncated ? '（截断）' : ''} ▸
+            </button>
+          ) : (
+            <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
+              已提取 {conversation.content.length.toLocaleString()} 字符
+              {conversation.truncated ? '（截断）' : ''}
+            </Badge>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"

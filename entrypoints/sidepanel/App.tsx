@@ -50,11 +50,12 @@ export default function App() {
   // ---- 会话（按 pageKey 加载/切换） ----
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [extracting, setExtracting] = useState(false);
-  const [streaming, setStreaming] = useState(false);
-  const [streamText, setStreamText] = useState('');
+  /** 按 pageKey 隔离的进行中流（值为已生成的流式文本）：多个标签页可并行独立生成 */
+  const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  // 轮次守卫：切页/发起新轮次后，旧流的回调不得再覆盖会话状态
+  // 每个页面独立的流控制器与轮次守卫（跨页互不影响）
+  const controllersRef = useRef<Map<string, AbortController>>(new Map());
+  const turnIdsRef = useRef<Map<string, number>>(new Map());
   const turnSeqRef = useRef(0);
   const pageKeyRef = useRef<string | null>(pageKey);
 
@@ -68,10 +69,9 @@ export default function App() {
       if (cancelled) return;
       setConversation(pageKey ? (all[pageKey] ?? null) : null);
     });
-    // 切页时中断进行中的流
+    // 切页不中断进行中的流：生成在后台继续完成并持久化到原页面会话
     return () => {
       cancelled = true;
-      abortRef.current?.abort();
     };
   }, [pageKey]);
 
@@ -86,18 +86,22 @@ export default function App() {
         return;
       }
 
-      abortRef.current?.abort();
+      // 同一页面只保留一条流：发起新轮次前中止本页旧流（其他页面的流不受影响）
+      controllersRef.current.get(base.pageKey)?.abort();
       const ac = new AbortController();
-      abortRef.current = ac;
+      controllersRef.current.set(base.pageKey, ac);
 
       const turnId = ++turnSeqRef.current;
-      const isActive = () => turnId === turnSeqRef.current && base.pageKey === pageKeyRef.current;
+      turnIdsRef.current.set(base.pageKey, turnId);
+      // 轮次守卫：本页发起新轮次后，旧流不再写入状态/存储
+      const isActive = () => turnIdsRef.current.get(base.pageKey) === turnId;
+      // 视图守卫：切页后旧流仍完成后台持久化，但不再更新当前视图
+      const isViewing = () => base.pageKey === pageKeyRef.current;
 
       let convNow = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
-      setConversation(convNow);
-      setStreaming(true);
-      setStreamText('');
-      setError(null);
+      if (isViewing()) setConversation(convNow);
+      setStreamTexts((prev) => ({ ...prev, [base.pageKey]: '' }));
+      if (isViewing()) setError(null);
 
       // ---- 上下文预算：超阈值先调模型压缩历史，仍超再逐步缩减正文 ----
       const threshold = compressThreshold(effectiveContextLimit(p));
@@ -122,7 +126,7 @@ export default function App() {
                 pending,
               ],
             };
-            setConversation(convNow);
+            if (isViewing()) setConversation(convNow);
             sys = buildSystemPrompt(convNow, settings);
           }
         }
@@ -153,13 +157,14 @@ export default function App() {
         {
           onDelta: (full) => {
             acc = full;
-            setStreamText(full);
+            setStreamTexts((prev) => ({ ...prev, [base.pageKey]: full }));
           },
           onDone: (full) => {
             if (!isActive()) return;
             const fin = withMessage(convNow, { role: 'assistant', content: full });
-            setConversation(fin);
+            // 后台完成（用户已切走）：照常落库，回来即见
             void persistConversation(fin);
+            if (isViewing()) setConversation(fin);
           },
           onError: (err) => {
             if (!isActive()) return;
@@ -169,20 +174,28 @@ export default function App() {
                 role: 'assistant',
                 content: acc + '\n\n> ⚠️ ' + (err.kind === 'aborted' ? '生成已中断' : describeLlmError(err)),
               });
-              setConversation(fin);
               void persistConversation(fin);
+              if (isViewing()) setConversation(fin);
             } else {
               // 一无所获：回滚本轮用户消息，便于重试
-              setConversation(base);
-              setError(describeLlmError(err));
+              if (isViewing()) {
+                setConversation(base);
+                setError(describeLlmError(err));
+              }
             }
           },
           signal: ac.signal,
         },
       );
 
-      setStreaming(false);
-      setStreamText('');
+      // 结束本页流：清理隔离状态（不影响其他页面的进行中流）
+      setStreamTexts((prev) => {
+        const next = { ...prev };
+        delete next[base.pageKey];
+        return next;
+      });
+      controllersRef.current.delete(base.pageKey);
+      turnIdsRef.current.delete(base.pageKey);
     },
     [currentProvider, settings],
   );
@@ -197,7 +210,7 @@ export default function App() {
       setError('请先在设置中配置并启用一个供应商');
       return;
     }
-    abortRef.current?.abort();
+    // 本页旧流由 runTurn 内部按 pageKey 中止，无需全局 abort
     setExtracting(true);
     setError(null);
     try {
@@ -237,15 +250,16 @@ export default function App() {
 
   const sendQuestion = useCallback(
     (text: string) => {
-      if (!conversation || streaming) return;
+      if (!conversation || conversation.pageKey in streamTexts) return;
       void runTurn('chat', text, conversation);
     },
-    [conversation, streaming, runTurn],
+    [conversation, streamTexts, runTurn],
   );
 
+  /** 停止当前查看页面的流（其他页面的后台流不受影响） */
   const stopStreaming = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
+    if (pageKey) controllersRef.current.get(pageKey)?.abort();
+  }, [pageKey]);
 
   // ---- 渲染 ----
 
@@ -301,7 +315,7 @@ export default function App() {
             {tab.url && !extracting && (
               <button
                 className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-                disabled={streaming}
+                disabled={pageKey != null && pageKey in streamTexts}
                 onClick={() => void extractAndSummarize()}
               >
                 {extracting ? '提取中…' : '提取并生成摘要'}
@@ -312,9 +326,9 @@ export default function App() {
           <UnifiedChat
             conversation={conversation}
             ready={ready}
-            streaming={streaming}
-            streamText={streamText}
-            disabled={!tab.url || streaming || extracting}
+            streaming={conversation.pageKey in streamTexts}
+            streamText={streamTexts[conversation.pageKey] ?? ''}
+            disabled={!tab.url || (pageKey != null && pageKey in streamTexts) || extracting}
             onGenerateSummary={generateSummaryOnly}
             onSend={sendQuestion}
             onStop={stopStreaming}

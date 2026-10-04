@@ -74,9 +74,16 @@ export async function saveSettings(patch: Partial<AppSettings>): Promise<void> {
 
 // ---------- conversations ----------
 
-/** 写入会话并做 LRU 淘汰 */
-export async function persistConversation(conversation: Conversation): Promise<void> {
-  const all = await conversationsItem.getValue();
-  all[conversation.pageKey] = conversation;
-  await conversationsItem.setValue(pruneConversations(all));
+// 多页面并行生成时会并发完成：串行化读改写，避免互相覆盖丢更新
+let persistChain: Promise<unknown> = Promise.resolve();
+
+/** 写入会话并做 LRU 淘汰（串行执行，并发安全） */
+export function persistConversation(conversation: Conversation): Promise<void> {
+  const run = async () => {
+    const all = await conversationsItem.getValue();
+    all[conversation.pageKey] = conversation;
+    await conversationsItem.setValue(pruneConversations(all));
+  };
+  persistChain = persistChain.then(run, run);
+  return persistChain as Promise<void>;
 }

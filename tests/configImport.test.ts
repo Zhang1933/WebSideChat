@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseProviderConfig } from '@/lib/importConfig';
+import { cleanCodexToml, parseProviderConfig } from '@/lib/importConfig';
 
 describe('parseProviderConfig', () => {
   it('解析 ~/.claude/settings.json（env 包装格式）', () => {
@@ -227,5 +227,60 @@ describe('parseProviderConfig', () => {
   it('非法 JSON 抛错', () => {
     expect(() => parseProviderConfig('{oops')).toThrow();
     expect(() => parseProviderConfig('')).toThrow();
+  });
+});
+
+describe('cleanCodexToml', () => {
+  const noisy = [
+    'model = "gpt-5.5"',
+    'model_provider = "custom"',
+    'model_reasoning_effort = "low"',
+    'disable_response_storage = true',
+    'notify = ["C:\\\\path\\\\codex-computer-use.exe", "turn-ended"]',
+    'approvals_reviewer = "user"',
+    'personality = "pragmatic"',
+    '',
+    '[windows]',
+    'sandbox = "elevated"',
+    '',
+    '[projects."c:\\\\users\\\\z1933\\\\workplace\\\\demo"]',
+    'trust_level = "trusted"',
+    '',
+    '[plugins."spreadsheets@openai-primary-runtime"]',
+    'enabled = true',
+    '',
+    '[model_providers.custom]',
+    'name = "sssaicode"',
+    'base_url = "https://node.example.com/api/v1"',
+    'wire_api = "responses"',
+    'requires_openai_auth = true',
+    'query_params = { foo = "bar" }',
+  ].join('\n');
+
+  it('去掉 projects/plugins/notify 等噪音，保留关键项', () => {
+    const cleaned = cleanCodexToml(noisy);
+    const parsed = JSON.parse(JSON.stringify(cleaned)); // 确认是文本
+    expect(typeof parsed).toBe('string');
+    expect(cleaned).toContain('model = "gpt-5.5"');
+    expect(cleaned).toContain('model_reasoning_effort = "low"');
+    expect(cleaned).toContain('base_url = "https://node.example.com/api/v1"');
+    expect(cleaned).toContain('wire_api = "responses"');
+    expect(cleaned).not.toContain('trust_level');
+    expect(cleaned).not.toContain('spreadsheets');
+    expect(cleaned).not.toContain('notify');
+    expect(cleaned).not.toContain('sandbox');
+    expect(cleaned).not.toContain('requires_openai_auth');
+    // 净化后仍可被解析器识别
+    const r = parseProviderConfig(cleaned);
+    expect(r.source).toBe('codex-toml');
+    expect(r.model).toBe('gpt-5.5');
+    expect(r.apiFormat).toBe('openai_responses');
+  });
+
+  it('解析失败或无关键内容时原样返回', () => {
+    const broken = 'this is === not toml';
+    expect(cleanCodexToml(broken)).toBe(broken);
+    const onlyNoise = '[projects."x"]\ntrust_level = "trusted"';
+    expect(cleanCodexToml(onlyNoise)).toBe(onlyNoise);
   });
 });

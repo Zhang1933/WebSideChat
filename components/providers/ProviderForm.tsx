@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
 import { loginCodexOAuth } from '@/lib/oauth';
+import { cleanCodexToml, parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
 import { parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
 import { ConfigImport } from './ConfigImport';
@@ -38,6 +39,55 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+/**
+ * 编辑时回填导入区：优先用保存过的配置原文；旧数据（功能上线前保存的供应商）
+ * 没有原文时，按当前字段值反向生成等效配置，保证导入区不为空。
+ */
+function backfillImportTexts(editing: Provider | null): Record<string, string> {
+  if (!editing) return {};
+  if (editing.importTexts && Object.keys(editing.importTexts).length > 0) {
+    return editing.importTexts;
+  }
+  if (editing.apiFormat === 'anthropic') {
+    // Claude：合成 settings.json
+    return {
+      main: JSON.stringify(
+        {
+          env: {
+            ANTHROPIC_BASE_URL: editing.baseUrl,
+            ANTHROPIC_AUTH_TOKEN: editing.apiKey,
+            ANTHROPIC_MODEL: editing.model,
+          },
+        },
+        null,
+        2,
+      ),
+    };
+  }
+  if (editing.importHint === 'codex' || editing.accountId) {
+    // OpenAI/Codex：合成 auth.json + config.toml
+    const auth = editing.accountId
+      ? {
+          auth_mode: 'chatgpt',
+          OPENAI_API_KEY: null,
+          tokens: { access_token: editing.apiKey, account_id: editing.accountId },
+        }
+      : { auth_mode: 'apikey', OPENAI_API_KEY: editing.apiKey };
+    return {
+      auth: JSON.stringify(auth, null, 2),
+      toml: [
+        `model = "${editing.model}"`,
+        '',
+        '[model_providers.openai]',
+        'name = "OpenAI"',
+        `base_url = "${editing.baseUrl}"`,
+        `wire_api = "${editing.apiFormat === 'openai_responses' ? 'responses' : 'chat'}"`,
+      ].join('\n'),
+    };
+  }
+  return {};
+}
 
 /** OAuth 登录成功后预填的默认 config.toml（指向 ChatGPT Codex 后端，可编辑后重新解析） */
 const DEFAULT_CODEX_CONFIG_TOML = [
@@ -67,7 +117,7 @@ export function ProviderForm({
   preset: ProviderPreset;
   /** 编辑中的供应商（有 id）；新增为 null */
   editing: Provider | null;
-  onSave: (values: FormValues, extras: { accountId?: string }) => void;
+  onSave: (values: FormValues, extras: { accountId?: string; importTexts?: Record<string, string> }) => void;
   onCancel: () => void;
 }) {
   const [showKey, setShowKey] = useState(false);
@@ -80,12 +130,23 @@ export function ProviderForm({
   const [oauthMsg, setOauthMsg] = useState<string | null>(null);
   /** OAuth 登录成功后生成的配置内容，预填到导入区输入框 */
   const [importPrefill, setImportPrefill] = useState<Record<string, string> | undefined>();
+  /** 导入区各输入框内容（受控；编辑时回显保存过的原文，旧数据反向生成等效配置） */
+  const [importTexts, setImportTexts] = useState<Record<string, string>>(() =>
+    backfillImportTexts(editing),
+  );
+
+  useEffect(() => {
+    if (!importPrefill) return;
+    setImportTexts((prev) => ({ ...prev, ...importPrefill }));
+  }, [importPrefill]);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    getValues,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -142,6 +203,25 @@ export function ProviderForm({
     }
   }
 
+  /** 把解析出的配置草稿应用到表单字段（解析填充与提交前自动解析共用） */
+  function applyDraftToForm(draft: ProviderDraft) {
+    setAccountId(draft.accountId);
+    if (draft.apiFormat) setValue('apiFormat', draft.apiFormat);
+    if (draft.baseUrl) setValue('baseUrl', draft.baseUrl);
+    if (draft.apiKey) setValue('apiKey', draft.apiKey);
+    if (draft.contextLimit) setValue('contextLimit', String(draft.contextLimit));
+    if (draft.model) {
+      // 长度后缀（如 [1m]/[128k]）提取数字入上下文上限，模型名剥离后缀
+      const parsed = parseContextSuffix(draft.model);
+      if (parsed) {
+        setValue('contextLimit', String(parsed.limit));
+        setValue('model', parsed.baseModel);
+      } else {
+        setValue('model', draft.model);
+      }
+    }
+  }
+
   async function loadModels(override?: {
     baseUrl?: string;
     apiKey?: string;
@@ -172,7 +252,29 @@ export function ProviderForm({
 
   return (
     <form
-      onSubmit={handleSubmit((values) => onSave(values, { accountId }))}
+      onSubmit={(e) => {
+        // 用户可能粘贴了配置但没点「解析并填充」：提交前先自动解析应用，
+        // 之后唯一强制校验的是没有默认值的 API Key
+        const { draft } = parseAndMergeTexts(
+          Object.entries(importTexts).map(([key, text]) => ({ key, text })),
+        );
+        if (draft.apiKey || draft.baseUrl || draft.model || draft.apiFormat || draft.contextLimit) {
+          applyDraftToForm(draft);
+        }
+        void handleSubmit((values) => {
+          if (!getValues('apiKey').trim()) {
+            setError('apiKey', {
+              type: 'manual',
+              message: 'API Key 不能为空：粘贴配置文件后点「解析并填充」，或手动填写',
+            });
+            return;
+          }
+          // 保存的 config.toml 去掉 projects/plugins 等本机噪音，只留关键配置
+          const cleanedTexts = { ...importTexts };
+          if (cleanedTexts.toml) cleanedTexts.toml = cleanCodexToml(cleanedTexts.toml);
+          onSave(values, { accountId, importTexts: cleanedTexts });
+        })(e);
+      }}
       className="flex flex-col gap-4"
     >
       {preset.importHint === 'codex' && (
@@ -208,25 +310,10 @@ export function ProviderForm({
 
       <ConfigImport
         hint={preset.importHint}
-        prefill={importPrefill}
+        texts={importTexts}
+        onTextsChange={setImportTexts}
         onApply={async (draft) => {
-          // OAuth 账号 ID 无条件覆盖：切回普通 Key 导入时清除
-          setAccountId(draft.accountId);
-          if (draft.apiFormat) setValue('apiFormat', draft.apiFormat);
-          if (draft.baseUrl) setValue('baseUrl', draft.baseUrl);
-          if (draft.apiKey) setValue('apiKey', draft.apiKey);
-          if (draft.contextLimit) setValue('contextLimit', String(draft.contextLimit));
-          if (draft.model) {
-            // 长度后缀（如 [1m]/[128k]）是上下文标记而非真实模型 ID：
-            // 提取数字写入上下文上限，模型名剥离后缀填入
-            const parsed = parseContextSuffix(draft.model);
-            if (parsed) {
-              setValue('contextLimit', String(parsed.limit));
-              setValue('model', parsed.baseModel);
-            } else {
-              setValue('model', draft.model);
-            }
-          }
+          applyDraftToForm(draft);
           // 导入后自动拉取模型列表；配置文件没带模型时默认选第一个
           const ids = await loadModels({
             baseUrl: draft.baseUrl,
@@ -283,6 +370,7 @@ export function ProviderForm({
             {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
+        {errors.apiKey && <p className="text-xs text-destructive">{errors.apiKey.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">

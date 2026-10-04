@@ -1,4 +1,4 @@
-import { parse as parseToml } from 'smol-toml';
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import type { ApiFormat } from '@/types';
 
 export interface ProviderDraft {
@@ -86,6 +86,83 @@ export function parseProviderConfig(text: string): ParsedProviderConfig {
     // 非 TOML → 报 JSON 错误
   }
   throw new Error(`既不是合法 JSON，也不是可识别的 config.toml：${String(jsonError ?? '')}`.trim());
+}
+
+/**
+ * 解析并合并多个输入框的配置文本（OpenAI 类型的 auth.json + config.toml 双框等）。
+ * 后解析的条目字段优先；单个条目解析失败不影响其余，错误逐条收集。
+ */
+export function parseAndMergeTexts(
+  entries: { key: string; label?: string; text: string }[],
+): { draft: ProviderDraft; labels: string[]; errors: string[] } {
+  const drafts: ParsedProviderConfig[] = [];
+  const labels: string[] = [];
+  const errors: string[] = [];
+  for (const entry of entries) {
+    const raw = entry.text.trim();
+    if (!raw) continue;
+    try {
+      const parsed = parseProviderConfig(raw);
+      drafts.push(parsed);
+      labels.push(CONFIG_SOURCE_LABELS[parsed.source].split('（')[0]!);
+    } catch (err) {
+      errors.push(`${entry.label ?? entry.key}解析失败：${(err as Error).message}`);
+    }
+  }
+  const draft = drafts.reduce<ProviderDraft>(
+    (acc, d) => ({
+      apiFormat: d.apiFormat ?? acc.apiFormat,
+      baseUrl: d.baseUrl ?? acc.baseUrl,
+      apiKey: d.apiKey ?? acc.apiKey,
+      model: d.model ?? acc.model,
+      contextLimit: d.contextLimit ?? acc.contextLimit,
+      accountId: d.accountId ?? acc.accountId,
+    }),
+    {},
+  );
+  return { draft, labels, errors };
+}
+
+/**
+ * 净化 Codex config.toml：只保留对插件有意义的配置，去掉 projects/plugins/
+ * notify/sandbox/approvals 等本机噪音后重新序列化。
+ * 保留：顶层 model / model_provider / model_reasoning_effort；
+ *       [model_providers.*] 的 name / base_url / wire_api / env_key。
+ * 解析失败或无可保留内容时原样返回（保存不因此报错）。
+ */
+export function cleanCodexToml(text: string): string {
+  const KEEP_SCALARS = ['model', 'model_provider', 'model_reasoning_effort'] as const;
+  const KEEP_PROVIDER_KEYS = ['name', 'base_url', 'wire_api', 'env_key'] as const;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseToml(text.trim()) as Record<string, unknown>;
+  } catch {
+    return text;
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const key of KEEP_SCALARS) {
+    if (typeof parsed[key] === 'string') out[key] = parsed[key];
+  }
+  const providers = parsed.model_providers;
+  if (providers && typeof providers === 'object' && !Array.isArray(providers)) {
+    const cleaned: Record<string, unknown> = {};
+    for (const [name, entry] of Object.entries(providers as Record<string, unknown>)) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+      const keep: Record<string, unknown> = {};
+      for (const k of KEEP_PROVIDER_KEYS) {
+        if (typeof (entry as Record<string, unknown>)[k] === 'string') {
+          keep[k] = (entry as Record<string, unknown>)[k];
+        }
+      }
+      if (Object.keys(keep).length > 0) cleaned[name] = keep;
+    }
+    if (Object.keys(cleaned).length > 0) out.model_providers = cleaned;
+  }
+
+  if (Object.keys(out).length === 0) return text;
+  return stringifyToml(out);
 }
 
 function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {

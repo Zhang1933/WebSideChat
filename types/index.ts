@@ -15,6 +15,10 @@ export interface Provider {
   contextLimit?: number;
   /** ChatGPT OAuth 登录的账号 ID（来自 auth.json 的 tokens.account_id），随 access_token 使用 */
   accountId?: string;
+  /** 导入区各输入框的内容（settings.json / auth.json / config.toml 原文），编辑时回显、保存时重新解析 */
+  importTexts?: Record<string, string>;
+  /** 新增时选择的配置类型（决定编辑时导入区的槽位形状） */
+  importHint?: ProviderPreset['importHint'];
   /** 'deepseek' | 'kimi' | 'moonshot' | 'qwen' | 'openai' | 'anthropic' | 'ollama' | 'custom' */
   icon?: string;
   iconColor?: string;

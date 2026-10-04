@@ -1,11 +1,9 @@
 import { ChevronDown, ChevronRight, FileUp, WandSparkles } from 'lucide-react';
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  CONFIG_SOURCE_LABELS,
-  parseProviderConfig,
-  type ParsedProviderConfig,
+  parseAndMergeTexts,
   type ProviderDraft,
 } from '@/lib/importConfig';
 import type { ProviderPreset } from '@/types';
@@ -39,7 +37,7 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
       {
         key: 'toml',
         label: 'config.toml',
-        placeholder: 'model = "gpt-5.1"\nmodel_provider = "custom"\n\n[model_providers.custom]\nbase_url = "https://…"',
+        placeholder: 'model = "gpt-5.5"\nmodel_provider = "custom"\n\n[model_providers.custom]\nbase_url = "https://…"',
         accept: '.toml,text/plain',
       },
     ];
@@ -66,74 +64,47 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
 /**
  * 配置文件导入区：粘贴或选择文件，解析后回填表单字段。
  * OpenAI 类型提供 auth.json / config.toml 两个输入框，一次合并填充。
+ * 文本状态由父组件持有（受控）：保存时父组件可对未解析的内容自动解析。
  */
 export function ConfigImport({
   hint,
-  prefill,
+  texts,
+  onTextsChange,
   onApply,
 }: {
   /** 配置类型（来自第一步的配置类型选择），决定导入区文案与输入框数量 */
   hint: ProviderPreset['importHint'];
-  /** 外部预填内容（如 OAuth 登录成功后生成的 auth.json / 默认 config.toml），键为槽位 key */
-  prefill?: Record<string, string>;
+  /** 各输入框内容，键为槽位 key */
+  texts: Record<string, string>;
+  onTextsChange: (next: Record<string, string>) => void;
   onApply: (draft: ProviderDraft) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const [texts, setTexts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const slots = slotsFor(hint);
 
-  // 外部预填（OAuth 登录）→ 合并进对应输入框，用户可再编辑/重新解析
-  useEffect(() => {
-    if (!prefill) return;
-    setTexts((prev) => ({ ...prev, ...prefill }));
-  }, [prefill]);
-
   /** 解析所有非空框并合并应用；部分失败时仍应用成功部分并提示失败原因 */
   function applyMerged() {
-    const drafts: ParsedProviderConfig[] = [];
-    const errors: string[] = [];
-    for (const slot of slots) {
-      const raw = (texts[slot.key] ?? '').trim();
-      if (!raw) continue;
-      try {
-        drafts.push(parseProviderConfig(raw));
-      } catch (err) {
-        errors.push(`${slot.label || '内容'}解析失败：${(err as Error).message}`);
-      }
-    }
-    if (drafts.length === 0) {
+    const { draft, labels, errors } = parseAndMergeTexts(
+      slots.map((s) => ({ key: s.key, label: s.label, text: texts[s.key] ?? '' })),
+    );
+    if (labels.length === 0) {
       setStatus({ ok: false, msg: errors[0] ?? '请先粘贴或选择文件' });
       return;
     }
-    // 合并：后解析的槽位字段优先（auth 提供密钥，toml 补模型/端点，无实际冲突）
-    const merged = drafts.reduce<ProviderDraft>((acc, d) => {
-      return {
-        apiFormat: d.apiFormat ?? acc.apiFormat,
-        baseUrl: d.baseUrl ?? acc.baseUrl,
-        apiKey: d.apiKey ?? acc.apiKey,
-        model: d.model ?? acc.model,
-        contextLimit: d.contextLimit ?? acc.contextLimit,
-        accountId: d.accountId ?? acc.accountId,
-      };
-    }, {});
-    onApply(merged);
-
-    const recognized = drafts
-      .map((d) => CONFIG_SOURCE_LABELS[d.source].split('（')[0]!)
-      .join(' + ');
+    onApply(draft);
     const filled = [
-      merged.baseUrl && 'Base URL',
-      merged.apiKey && (merged.accountId ? 'API Key（ChatGPT OAuth）' : 'API Key'),
-      merged.model && '模型',
-      merged.apiFormat && '协议',
-      merged.contextLimit && '上下文上限',
+      draft.baseUrl && 'Base URL',
+      draft.apiKey && (draft.accountId ? 'API Key（ChatGPT OAuth）' : 'API Key'),
+      draft.model && '模型',
+      draft.apiFormat && '协议',
+      draft.contextLimit && '上下文上限',
     ]
       .filter(Boolean)
       .join('、');
     setStatus({
       ok: errors.length === 0,
-      msg: `已识别 ${recognized}，填入：${filled || '（无新字段）'}${errors.length ? `；${errors.join('；')}` : ''}`,
+      msg: `已识别 ${labels.join(' + ')}，填入：${filled || '（无新字段）'}${errors.length ? `；${errors.join('；')}` : ''}`,
     });
   }
 
@@ -142,7 +113,7 @@ export function ConfigImport({
     if (!file) return;
     try {
       const raw = await file.text();
-      setTexts((prev) => ({ ...prev, [slotKey]: raw }));
+      onTextsChange({ ...texts, [slotKey]: raw });
     } catch (err) {
       setStatus({ ok: false, msg: `读取文件失败：${(err as Error).message}` });
     }
@@ -184,7 +155,7 @@ export function ConfigImport({
               </div>
               <Textarea
                 value={texts[slot.key] ?? ''}
-                onChange={(e) => setTexts((prev) => ({ ...prev, [slot.key]: e.target.value }))}
+                onChange={(e) => onTextsChange({ ...texts, [slot.key]: e.target.value })}
                 placeholder={slot.placeholder}
                 rows={slot.key === 'toml' ? 6 : 4}
                 className="font-mono text-[11px]"

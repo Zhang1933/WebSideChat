@@ -91,7 +91,7 @@ export function ProvidersPage({
       apiFormat: 'openai_chat' | 'anthropic' | 'openai_responses';
       contextLimit: string;
     },
-    extras: { accountId?: string },
+    extras: { accountId?: string; importTexts?: Record<string, string> },
   ) {
     const { contextLimit, ...rest } = values;
     const provider: Provider = {
@@ -100,6 +100,13 @@ export function ProvidersPage({
       contextLimit: contextLimit ? Number(contextLimit) : undefined,
       // accountId 来自 auth.json 的 OAuth 导入，不在表单字段里
       accountId: extras.accountId,
+      // 记住新增时选择的配置类型：编辑时导入区保持相同的槽位（双框/单框）
+      importHint: draftPreset.importHint,
+      // 导入区配置原文（settings.json / auth.json / config.toml）随供应商保存，编辑时回显
+      importTexts:
+        extras.importTexts && Object.keys(extras.importTexts).length > 0
+          ? extras.importTexts
+          : undefined,
       icon: editing?.icon ?? draftPreset.icon,
       iconColor: editing?.iconColor ?? draftPreset.iconColor,
       category: editing?.category ?? (draftPreset.id === 'custom' ? 'custom' : 'preset'),
@@ -182,7 +189,12 @@ export function ProvidersPage({
                       onUse={() => currentProviderIdItem.setValue(p.id)}
                       onEdit={() => {
                         setEditing(p);
-                        setDraftPreset(EMPTY_CUSTOM_PRESET);
+                        // 保留原配置类型的导入提示（编辑时导入区保持同样的槽位形状）
+                        setDraftPreset(
+                          p.importHint
+                            ? { ...EMPTY_CUSTOM_PRESET, importHint: p.importHint }
+                            : EMPTY_CUSTOM_PRESET,
+                        );
                         setView('form');
                       }}
                       onDelete={() => handleDelete(p)}

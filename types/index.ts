@@ -81,7 +81,7 @@ export interface Conversation {
 
 export interface AppSettings {
   summaryLanguage: 'zh' | 'en' | 'auto';
-  /** 调试模式：显示"查看提取内容"入口，可查看实际送入模型的正文 */
+  /** 显示提取的 Web 内容：顶栏"已提取 N 字符"可点击查看实际送入模型的正文（默认开） */
   debugMode?: boolean;
   /** 自定义系统提示词（角色设定）；空/未设置 = 使用内置默认 */
   customSystemPrompt?: string;
@@ -91,5 +91,5 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   summaryLanguage: 'zh',
-  debugMode: false,
+  debugMode: true,
 };

@@ -278,7 +278,7 @@ export default function App() {
         title={tab.title}
         conversation={conversation}
         extracting={extracting}
-        debug={settings.debugMode}
+        debug={settings.debugMode ?? true}
         onViewContent={() => setContentViewerOpen(true)}
         onReextract={reextract}
       />

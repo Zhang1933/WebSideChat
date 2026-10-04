@@ -236,14 +236,14 @@ export function ProvidersPage({
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col">
-                      <Label htmlFor="debug-mode">调试模式</Label>
+                      <Label htmlFor="debug-mode">显示提取的 Web 内容</Label>
                       <p className="text-[11px] text-muted-foreground">
-                        顶栏"已提取 N 字符"变为可点击，查看实际送入模型的提取内容
+                        顶栏"已提取 N 字符"可点击，查看实际送入模型的提取内容
                       </p>
                     </div>
                     <Switch
                       id="debug-mode"
-                      checked={settings.debugMode ?? false}
+                      checked={settings.debugMode ?? true}
                       onCheckedChange={(v) => patchSettings({ debugMode: v })}
                     />
                   </div>

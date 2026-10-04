@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Send, Sparkles, Square } from 'lucide-react';
+import { Loader2, Send, Sparkles, Square } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,8 +37,6 @@ export function UnifiedChat({
   const stickToBottomRef = useRef(true);
 
   const visibleMessages = conversation.messages.slice(1);
-  // 首条 AI 消息（摘要；压缩后可能是纪要）的索引，用于挂"重新生成"入口
-  const firstAssistantIndex = visibleMessages.findIndex((m) => m.role === 'assistant');
 
   function handleListScroll() {
     const el = listRef.current;
@@ -96,17 +94,6 @@ export function UnifiedChat({
           return (
             <Fragment key={i}>
               <MessageBubble message={m} muted={isDigest} />
-              {/* 摘要气泡（首条 AI 消息）下的重新生成入口 */}
-              {m.role === 'assistant' && i === firstAssistantIndex && ready && !streaming && (
-                <button
-                  type="button"
-                  onClick={onGenerateSummary}
-                  disabled={disabled}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
-                >
-                  <RefreshCw className="size-3" /> 重新生成摘要
-                </button>
-              )}
             </Fragment>
           );
         })}

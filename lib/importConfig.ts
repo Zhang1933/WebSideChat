@@ -6,6 +6,10 @@ export interface ProviderDraft {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  /** 配置文件中显式给出的上下文上限（token），如 Grok config.toml 的 context_window */
+  contextLimit?: number;
+  /** ChatGPT OAuth 登录（auth_mode=chatgpt）的账号 ID，随 access_token 一起用于鉴权头 */
+  accountId?: string;
 }
 
 export type ConfigSource =
@@ -13,6 +17,7 @@ export type ConfigSource =
   | 'codex-auth'
   | 'codex-toml'
   | 'gemini-env'
+  | 'grok-toml'
   | 'generic-fields'
   | 'unknown';
 
@@ -26,6 +31,7 @@ export const CONFIG_SOURCE_LABELS: Record<ConfigSource, string> = {
   'codex-auth': 'OpenAI 配置（auth.json / cc-switch Codex 格式）',
   'codex-toml': 'Codex config.toml（模型与自定义端点）',
   'gemini-env': 'Gemini 配置（GEMINI_API_KEY / GOOGLE_GEMINI_BASE_URL / GEMINI_MODEL）',
+  'grok-toml': 'Grok 配置（config.toml 的 [model.*] 表）',
   'generic-fields': '通用字段 JSON（baseUrl/apiKey/model）',
   unknown: '未识别',
 };
@@ -67,12 +73,14 @@ export function parseProviderConfig(text: string): ParsedProviderConfig {
     return parseJsonObject(obj);
   }
 
-  // 非 JSON → 尝试 Codex config.toml
+  // 非 JSON → 尝试 TOML（Grok config.toml / Codex config.toml）
   try {
     const toml = asRecord(parseToml(trimmed));
     if (toml) {
-      const parsed = parseCodexToml(toml);
-      if (parsed) return parsed;
+      const grok = parseGrokToml(toml);
+      if (grok) return grok;
+      const codex = parseCodexToml(toml);
+      if (codex) return codex;
     }
   } catch {
     // 非 TOML → 报 JSON 错误
@@ -110,11 +118,22 @@ function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {
     };
   }
 
-  // ② OpenAI / Codex auth.json
+  // ② OpenAI / Codex auth.json：API Key 模式或 ChatGPT OAuth 登录模式
   const auth = asRecord(obj.auth) ?? obj;
   const openaiKey = asString(auth.OPENAI_API_KEY);
   if (openaiKey) {
     return { source: 'codex-auth', apiFormat: 'openai_chat', apiKey: openaiKey };
+  }
+  const tokens = asRecord((asRecord(auth.tokens) ?? asRecord(obj.tokens)) ?? null);
+  const accessToken = asString(tokens?.access_token);
+  if (accessToken) {
+    // auth_mode=chatgpt：access_token 做 Bearer + chatgpt-account-id 头，端点走 /responses
+    return {
+      source: 'codex-auth',
+      apiFormat: 'openai_responses',
+      apiKey: accessToken,
+      accountId: asString(tokens?.account_id),
+    };
   }
 
   // ③ Gemini env（cc-switch Gemini settingsConfig / gemini CLI）
@@ -145,10 +164,44 @@ function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {
   return { source: 'unknown' };
 }
 
-/** Codex config.toml：顶层 model + model_provider 指向（或第一个）model_providers 条目的 base_url */
+/**
+ * Grok config.toml：
+ *   [models] default = "grok-4.6"
+ *   [model."grok-4.6"] model / base_url / api_key / api_backend / context_window
+ * 特征是顶层 model 为表（Codex 的顶层 model 是字符串）。api_backend=responses 映射 responses 协议。
+ */
+function parseGrokToml(toml: Record<string, unknown>): ParsedProviderConfig | null {
+  const modelTable = asRecord(toml.model);
+  if (!modelTable) return null;
+  const selector = asString(asRecord(toml.models)?.default);
+  const keys = Object.keys(modelTable);
+  const key = selector && modelTable[selector] ? selector : keys[0];
+  const entry = asRecord(modelTable[key ?? '']);
+  if (!entry) return null;
+
+  const baseUrl = asString(entry.base_url);
+  const apiKey = asString(entry.api_key);
+  const model = asString(entry.model) ?? key;
+  if (!baseUrl && !apiKey && !model) return null;
+
+  const contextWindow = Number(entry.context_window);
+  return {
+    source: 'grok-toml',
+    apiFormat: asString(entry.api_backend) === 'responses' ? 'openai_responses' : 'openai_chat',
+    baseUrl,
+    apiKey,
+    model,
+    contextLimit:
+      Number.isFinite(contextWindow) && contextWindow > 0 ? Math.round(contextWindow) : undefined,
+  };
+}
+
+/** Codex config.toml：顶层 model + model_provider 指向（或第一个）model_providers 条目的 base_url；
+ *  wire_api = "responses" 的端点映射 Responses 协议 */
 function parseCodexToml(toml: Record<string, unknown>): ParsedProviderConfig | null {
   const model = asString(toml.model);
   let baseUrl: string | undefined;
+  let wireApi: string | undefined;
   const providers = asRecord(toml.model_providers);
   if (providers) {
     const activeKey = asString(toml.model_provider);
@@ -156,7 +209,14 @@ function parseCodexToml(toml: Record<string, unknown>): ParsedProviderConfig | n
       (activeKey ? asRecord(providers[activeKey]) : null) ??
       asRecord(Object.values(providers)[0]);
     baseUrl = asString(entry?.base_url);
+    wireApi = asString(entry?.wire_api);
   }
   if (!model && !baseUrl) return null;
-  return { source: 'codex-toml', apiFormat: 'openai_chat', model, baseUrl };
+  return {
+    source: 'codex-toml',
+    // 官方端点（无 model_providers）不指定协议，让 auth.json 一侧的决定（如 OAuth → responses）生效
+    apiFormat: providers ? (wireApi === 'responses' ? 'openai_responses' : 'openai_chat') : undefined,
+    model,
+    baseUrl,
+  };
 }

@@ -1,5 +1,5 @@
 /** LLM API 协议格式（对齐 cc-switch 的 apiFormat 概念） */
-export type ApiFormat = 'openai_chat' | 'anthropic';
+export type ApiFormat = 'openai_chat' | 'anthropic' | 'openai_responses';
 
 /** 供应商配置（扁平结构，存储于 chrome.storage.local） */
 export interface Provider {
@@ -13,6 +13,8 @@ export interface Provider {
   apiFormat: ApiFormat;
   /** 上下文上限（token）；留空 = 自动：模型名以 [1m] 结尾取 1,000,000，否则 128,000 */
   contextLimit?: number;
+  /** ChatGPT OAuth 登录的账号 ID（来自 auth.json 的 tokens.account_id），随 access_token 使用 */
+  accountId?: string;
   /** 'deepseek' | 'kimi' | 'moonshot' | 'qwen' | 'openai' | 'anthropic' | 'ollama' | 'custom' */
   icon?: string;
   iconColor?: string;
@@ -33,7 +35,7 @@ export interface ProviderPreset {
   icon: string;
   iconColor?: string;
   /** 配置文件导入格式提示：决定导入区的标题与占位符 */
-  importHint?: 'claude-settings' | 'codex' | 'gemini-env';
+  importHint?: 'claude-settings' | 'codex' | 'gemini-env' | 'grok-toml';
 }
 
 export interface ChatMessage {

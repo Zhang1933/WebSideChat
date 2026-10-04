@@ -34,21 +34,23 @@ export function PageBar({
         <p className="truncate text-[11px] text-muted-foreground">{domain}</p>
       </div>
       {conversation && (
-        <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
-          已提取 {conversation.content.length.toLocaleString()} 字符
-          {conversation.truncated ? '（截断）' : ''}
-        </Badge>
+        <>
+          <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
+            已提取 {conversation.content.length.toLocaleString()} 字符
+            {conversation.truncated ? '（截断）' : ''}
+          </Badge>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="重新提取并生成摘要"
+            title="重新提取正文并重新生成摘要"
+            disabled={!url || extracting}
+            onClick={onReextract}
+          >
+            <RefreshCw className={extracting ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          </Button>
+        </>
       )}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="重新提取"
-        title="重新提取正文"
-        disabled={!url || extracting}
-        onClick={onReextract}
-      >
-        <RefreshCw className={extracting ? 'size-3.5 animate-spin' : 'size-3.5'} />
-      </Button>
     </div>
   );
 }

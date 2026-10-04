@@ -86,6 +86,27 @@ describe('parseProviderConfig', () => {
     expect(r.apiFormat).toBe('openai_chat');
   });
 
+  it('解析 ChatGPT OAuth 登录的 auth.json（OPENAI_API_KEY 为 null）', () => {
+    const r = parseProviderConfig(
+      JSON.stringify({
+        auth_mode: 'chatgpt',
+        OPENAI_API_KEY: null,
+        tokens: {
+          access_token: 'eyJaccess...',
+          refresh_token: 'rt.1.AAC...',
+          account_id: '0e132663-6f7e-4019-8611-5080642c9bc8',
+        },
+        last_refresh: '2026-10-04T07:52:50Z',
+      }),
+    );
+    expect(r).toEqual({
+      source: 'codex-auth',
+      apiFormat: 'openai_responses',
+      apiKey: 'eyJaccess...',
+      accountId: '0e132663-6f7e-4019-8611-5080642c9bc8',
+    });
+  });
+
   it('解析通用字段 JSON（含 apiFormat 与下划线变体）', () => {
     const r = parseProviderConfig(
       JSON.stringify({ baseURL: 'https://b', api_key: 'sk-x', model: 'm1', apiFormat: 'anthropic' }),
@@ -134,12 +155,67 @@ describe('parseProviderConfig', () => {
     });
   });
 
+  it('Codex config.toml 的 wire_api=responses 映射 Responses 协议', () => {
+    const r = parseProviderConfig(
+      [
+        'model_provider = "custom"',
+        'model = "gpt-5.5"',
+        '',
+        '[model_providers.custom]',
+        'name = "sssaicode"',
+        'base_url = "https://node.example.com/api/v1"',
+        'wire_api = "responses"',
+        'requires_openai_auth = true',
+      ].join('\n'),
+    );
+    expect(r.source).toBe('codex-toml');
+    expect(r.model).toBe('gpt-5.5');
+    expect(r.baseUrl).toBe('https://node.example.com/api/v1');
+    expect(r.apiFormat).toBe('openai_responses');
+  });
+
   it('config.toml 无 model_provider 时取第一个 provider 的 base_url', () => {
     const r = parseProviderConfig(
       '[model_providers.p1]\nbase_url = "https://a.com"\n\n[model_providers.p2]\nbase_url = "https://b.com"\n',
     );
     expect(r.source).toBe('codex-toml');
     expect(r.baseUrl).toBe('https://a.com');
+  });
+
+  it('解析 Grok config.toml（responses 后端 + context_window）', () => {
+    const r = parseProviderConfig(
+      [
+        '[models]',
+        'default = "grok-4.6"',
+        '',
+        '[model]',
+        '[model."grok-4.6"]',
+        'model = "grok-4.6"',
+        'base_url = "https://www.packyapi.ai/v1"',
+        'name = "PackyCode zgc"',
+        'api_backend = "responses"',
+        'context_window = 500000',
+        'api_key = "sk-test"',
+      ].join('\n'),
+    );
+    expect(r).toEqual({
+      source: 'grok-toml',
+      apiFormat: 'openai_responses',
+      baseUrl: 'https://www.packyapi.ai/v1',
+      apiKey: 'sk-test',
+      model: 'grok-4.6',
+      contextLimit: 500_000,
+    });
+  });
+
+  it('Grok toml 的 chat 后端映射 openai_chat，无 default 时取第一个条目', () => {
+    const r = parseProviderConfig(
+      '[model."m1"]\nmodel = "m1"\nbase_url = "https://g.com/v1"\napi_backend = "chat"\napi_key = "k"',
+    );
+    expect(r.source).toBe('grok-toml');
+    expect(r.apiFormat).toBe('openai_chat');
+    expect(r.model).toBe('m1');
+    expect(r.contextLimit).toBeUndefined();
   });
 
   it('无关 JSON 返回 unknown', () => {

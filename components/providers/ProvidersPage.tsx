@@ -81,19 +81,24 @@ export function ProvidersPage({
 
   const list = Object.values(providers).sort((a, b) => a.createdAt - b.createdAt);
 
-  function handleSave(values: {
-    name: string;
-    baseUrl: string;
-    apiKey: string;
-    model: string;
-    apiFormat: 'openai_chat' | 'anthropic';
-    contextLimit: string;
-  }) {
+  function handleSave(
+    values: {
+      name: string;
+      baseUrl: string;
+      apiKey: string;
+      model: string;
+      apiFormat: 'openai_chat' | 'anthropic' | 'openai_responses';
+      contextLimit: string;
+    },
+    extras: { accountId?: string },
+  ) {
     const { contextLimit, ...rest } = values;
     const provider: Provider = {
       id: editing?.id ?? crypto.randomUUID(),
       ...rest,
       contextLimit: contextLimit ? Number(contextLimit) : undefined,
+      // accountId 来自 auth.json 的 OAuth 导入，不在表单字段里
+      accountId: extras.accountId,
       icon: editing?.icon ?? draftPreset.icon,
       iconColor: editing?.iconColor ?? draftPreset.iconColor,
       category: editing?.category ?? (draftPreset.id === 'custom' ? 'custom' : 'preset'),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { anthropicAdapter } from '@/lib/llm/anthropic';
 import { openaiChatAdapter } from '@/lib/llm/openai-chat';
+import { openaiResponsesAdapter } from '@/lib/llm/responses';
 import { SseParser } from '@/lib/llm/sse';
 import type { Provider } from '@/types';
 
@@ -109,6 +110,44 @@ describe('openaiChatAdapter.extractDelta', () => {
     expect(openaiChatAdapter.extractFull({ choices: [{ message: { content: 'full' } }] })).toBe(
       'full',
     );
+  });
+});
+
+describe('openaiResponsesAdapter', () => {
+  it('buildRequest：/responses 端点、instructions 放 system、剥离 [1m]', () => {
+    const { url, body } = openaiResponsesAdapter.buildRequest(
+      providerWith('grok-4.6[1m]', 'openai_responses'),
+      { system: 'sys', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(url).toBe('https://api.example.com/responses');
+    const b = body as { model: string; instructions: string; input: { role: string; content: string }[] };
+    expect(b.model).toBe('grok-4.6');
+    expect(b.instructions).toBe('sys');
+    expect(b.input).toEqual([{ role: 'user', content: 'hi' }]);
+  });
+
+  it('output_text.delta 提取增量，response.completed 结束', () => {
+    const d = openaiResponsesAdapter.extractDelta({
+      data: '{"type":"response.output_text.delta","delta":"你好"}',
+    });
+    expect(d?.text).toBe('你好');
+    const done = openaiResponsesAdapter.extractDelta({ data: '{"type":"response.completed"}' });
+    expect(done?.done).toBe(true);
+  });
+
+  it('response.failed 转为 provider 错误', () => {
+    const r = openaiResponsesAdapter.extractDelta({
+      data: '{"type":"response.failed","response":{"error":{"message":"quota"}}}',
+    });
+    expect(r?.error?.message).toContain('quota');
+  });
+
+  it('extractFull 拼接 output_text 块', () => {
+    expect(
+      openaiResponsesAdapter.extractFull({
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'a' }] }],
+      }),
+    ).toBe('a');
   });
 });
 

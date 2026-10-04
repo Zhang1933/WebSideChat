@@ -11,7 +11,8 @@
 - **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
 - **会话持久化**：按 URL（去 hash/跟踪参数）保存会话，切标签页/重启浏览器后恢复，LRU 保留最近 10 个页面
 - **多供应商**：内置 DeepSeek / Kimi / 通义千问 / 智谱 / OpenAI / Anthropic / Ollama 预设，也可添加任意自定义端点
-- **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）；**Gemini** → env 配置（`GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`）。粘贴或选文件，自动识别回填表单并拉取模型列表
+- **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）；**Gemini** → env 配置（`GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`）；**Grok** → `config.toml`（`[model."x"]` 表：`base_url`/`api_key`/`context_window`/`api_backend`）。粘贴或选文件，自动识别回填表单（含上下文上限）并拉取模型列表
+- **三协议 LLM 客户端**：`openai_chat`（chat/completions）、`anthropic`（v1/messages）、`openai_responses`（v1/responses，Grok/PackyAPI 等声明 `api_backend="responses"` 的端点）
 - **提示词自定义**：设置页（左侧导航）可编辑系统提示词（角色设定）与摘要指令，支持恢复内置默认
 - **上下文管理**：每个供应商可配置**上下文上限（token）**（模型名带长度后缀如 `[1m]`/`[128k]` 自动取对应值，默认 128k）；正文提取预算 = 上下文 × 0.8；多轮对话超过阈值时**自动调用模型压缩历史**为纪要，仍超则逐步缩减正文
 - **多标签页并行**：每个标签页是独立会话与独立流——可同时在多个标签页生成摘要/追问，互不打断；切页后流在后台继续完成并写入该页会话，切回即见（同一页面同时只有一条流，重新发起会中止该页旧流）
@@ -32,13 +33,10 @@ npm run zip        # 打包 .output/*.zip（可上架/分发）
 
 ## 使用
 
-1. **点击工具栏图标**：固定当前标签页并打开侧边栏（面板按标签页启用——未固定的标签页/新标签页不显示面板，切过去时自动收起）
+1. **点击工具栏图标**打开侧边栏（窗口级开关：图标开、Chrome × 关，切换标签页保持）
 2. 首次使用点"去添加供应商"（或 ⚙ / 顶栏"管理供应商…"）——**在新标签页**打开设置：**新增供应商** → 选配置类型（Claude/OpenAI/Gemini，支持粘贴 settings.json / auth.json + config.toml / Gemini env 导入）→ 「获取模型列表」选择模型 → 保存，回到侧边栏即生效
 3. 打开任意网页 → 点 **提取并生成摘要**
 4. 在底部输入框针对页面内容追问；顶栏下拉可随时切换供应商
-5. 面板头部的 **pin 图标** 📌：取消固定 = 此标签页收起面板；工具栏图标再点一次 = 重新固定并打开
-
-> 注：Chrome 不允许扩展在没有用户手势时打开面板，因此"新标签页自动打开"无法实现——最接近的行为是：新标签页点一次工具栏图标即固定并打开（pin 状态存浏览器会话，重启浏览器后重置）。
 
 ## 架构
 

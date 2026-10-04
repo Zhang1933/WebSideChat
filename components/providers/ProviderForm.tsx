@@ -26,7 +26,7 @@ const formSchema = z.object({
     .refine((v) => /^https?:\/\//.test(v), '必须以 http:// 或 https:// 开头'),
   apiKey: z.string(),
   model: z.string().min(1, '模型必填'),
-  apiFormat: z.enum(['openai_chat', 'anthropic']),
+  apiFormat: z.enum(['openai_chat', 'anthropic', 'openai_responses']),
   // 留空 = 自动（模型名带 [1m] 后缀取 1,000,000，否则 128,000）
   contextLimit: z
     .string()
@@ -41,6 +41,7 @@ type FormValues = z.infer<typeof formSchema>;
 const BASE_URL_PLACEHOLDER: Record<FormValues['apiFormat'], string> = {
   openai_chat: '如 https://api.deepseek.com（自带版本段，无需自动补 /v1）',
   anthropic: '如 https://api.anthropic.com',
+  openai_responses: '如 https://api.x.ai/v1',
 };
 
 export function ProviderForm({
@@ -53,13 +54,15 @@ export function ProviderForm({
   preset: ProviderPreset;
   /** 编辑中的供应商（有 id）；新增为 null */
   editing: Provider | null;
-  onSave: (values: FormValues) => void;
+  onSave: (values: FormValues, extras: { accountId?: string }) => void;
   onCancel: () => void;
 }) {
   const [showKey, setShowKey] = useState(false);
   const [models, setModels] = useState<string[] | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelError, setFetchModelError] = useState<string | null>(null);
+  // ChatGPT OAuth 的账号 ID 来自导入（不在表单字段里），编辑时保留、导入时覆盖
+  const [accountId, setAccountId] = useState<string | undefined>(editing?.accountId);
 
   const {
     register,
@@ -112,13 +115,19 @@ export function ProviderForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-4">
+    <form
+      onSubmit={handleSubmit((values) => onSave(values, { accountId }))}
+      className="flex flex-col gap-4"
+    >
       <ConfigImport
         hint={preset.importHint}
         onApply={async (draft) => {
+          // OAuth 账号 ID 无条件覆盖：切回普通 Key 导入时清除
+          setAccountId(draft.accountId);
           if (draft.apiFormat) setValue('apiFormat', draft.apiFormat);
           if (draft.baseUrl) setValue('baseUrl', draft.baseUrl);
           if (draft.apiKey) setValue('apiKey', draft.apiKey);
+          if (draft.contextLimit) setValue('contextLimit', String(draft.contextLimit));
           if (draft.model) {
             // 长度后缀（如 [1m]/[128k]）是上下文标记而非真实模型 ID：
             // 提取数字写入上下文上限，模型名剥离后缀填入
@@ -155,6 +164,7 @@ export function ProviderForm({
           <SelectContent>
             <SelectItem value="openai_chat">OpenAI 兼容（chat/completions）</SelectItem>
             <SelectItem value="anthropic">Anthropic（v1/messages）</SelectItem>
+            <SelectItem value="openai_responses">OpenAI Responses（v1/responses）</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -207,6 +217,10 @@ export function ProviderForm({
                 <SelectValue placeholder="选择模型" />
               </SelectTrigger>
               <SelectContent className="max-h-64">
+                {/* 配置文件带入的模型可能不在 /models 列表里，固定置顶防止下拉显示为空 */}
+                {watch('model') && !models.includes(watch('model')) && (
+                  <SelectItem value={watch('model')}>{watch('model')}（配置值）</SelectItem>
+                )}
                 {models.map((id) => (
                   <SelectItem key={id} value={id}>
                     {id}

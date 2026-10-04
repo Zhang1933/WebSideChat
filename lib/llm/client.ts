@@ -1,11 +1,19 @@
 import type { ChatMessage, Provider } from '@/types';
 import { anthropicAdapter } from './anthropic';
 import { openaiChatAdapter } from './openai-chat';
+import { openaiResponsesAdapter } from './responses';
 import { SseParser } from './sse';
 import type { LlmError, LlmStreamRequest, ProtocolAdapter, StreamHandlers } from './types';
 
 export function adapterFor(provider: Provider): ProtocolAdapter {
-  return provider.apiFormat === 'anthropic' ? anthropicAdapter : openaiChatAdapter;
+  switch (provider.apiFormat) {
+    case 'anthropic':
+      return anthropicAdapter;
+    case 'openai_responses':
+      return openaiResponsesAdapter;
+    default:
+      return openaiChatAdapter;
+  }
 }
 
 function mapHttpError(status: number, body: string): LlmError {

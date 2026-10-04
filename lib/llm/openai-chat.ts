@@ -12,6 +12,8 @@ export const openaiChatAdapter: ProtocolAdapter = {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${provider.apiKey}`,
+        // ChatGPT OAuth（access_token 鉴权）需要账号 ID 头
+        ...(provider.accountId ? { 'chatgpt-account-id': provider.accountId } : {}),
       },
       body: {
         model: stripContextSuffix(provider.model),

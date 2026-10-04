@@ -5,6 +5,12 @@ export const MAX_CONVERSATIONS = 10;
 /** 单会话消息上限，超出丢最旧（摘要轮 [0] 保留） */
 export const MAX_MESSAGES = 100;
 
+/**
+ * 上下文动态压缩标记：压缩后的 user 消息内容固定为该字符串，
+ * UI 据此渲染为"上文已压缩"提示行，其后紧跟 assistant 的压缩纪要。
+ */
+export const CONTEXT_COMPRESSED_MARKER = '⟦上文已压缩⟧';
+
 /** 淘汰超出上限的旧会话（纯函数，供单测） */
 export function pruneConversations(
   conversations: Record<string, Conversation>,

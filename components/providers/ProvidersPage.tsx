@@ -1,7 +1,6 @@
 import { ChevronLeft, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -29,8 +28,19 @@ type View = 'list' | 'preset' | 'form';
 
 const EMPTY_CUSTOM_PRESET: ProviderPreset = PROVIDER_PRESETS.find((p) => p.id === 'custom')!;
 
-/** 设置视图：供应商卡片列表 + 两步式新增 + 通用设置 */
-export function ProvidersPage({ onBack }: { onBack: () => void }) {
+/** 供应商管理视图：卡片列表 + 两步式新增 + 通用设置（侧边栏与 options 整页共用） */
+export function ProvidersPage({
+  onBack,
+  initialEditId,
+  initialAdd,
+}: {
+  /** 提供时显示顶层返回按钮（侧边栏场景）；options 整页不需要 */
+  onBack?: () => void;
+  /** 深链：?edit=<providerId> 加载完成后自动进入该供应商的编辑表单 */
+  initialEditId?: string | null;
+  /** 深链：?add=1 自动进入新增预设网格 */
+  initialAdd?: boolean;
+}) {
   const [view, setView] = useState<View>('list');
   const [providers, setProviders] = useState<Record<string, Provider>>({});
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -50,6 +60,25 @@ export function ProvidersPage({ onBack }: { onBack: () => void }) {
     };
   }, []);
 
+  // 深链引导（只执行一次）：edit 需等 providers 加载后才能定位
+  const bootstrappedRef = useRef(false);
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
+    if (initialEditId) {
+      const target = providers[initialEditId];
+      if (!target) return; // 等加载，或 id 不存在时留在列表
+      bootstrappedRef.current = true;
+      setEditing(target);
+      setDraftPreset(EMPTY_CUSTOM_PRESET);
+      setView('form');
+    } else if (initialAdd) {
+      bootstrappedRef.current = true;
+      setView('preset');
+    } else {
+      bootstrappedRef.current = true;
+    }
+  }, [providers, initialEditId, initialAdd]);
+
   const list = Object.values(providers).sort((a, b) => a.createdAt - b.createdAt);
 
   function handleSave(values: {
@@ -58,10 +87,13 @@ export function ProvidersPage({ onBack }: { onBack: () => void }) {
     apiKey: string;
     model: string;
     apiFormat: 'openai_chat' | 'anthropic';
+    contextLimit: string;
   }) {
+    const { contextLimit, ...rest } = values;
     const provider: Provider = {
       id: editing?.id ?? crypto.randomUUID(),
-      ...values,
+      ...rest,
+      contextLimit: contextLimit ? Number(contextLimit) : undefined,
       icon: editing?.icon ?? draftPreset.icon,
       iconColor: editing?.iconColor ?? draftPreset.iconColor,
       category: editing?.category ?? (draftPreset.id === 'custom' ? 'custom' : 'preset'),
@@ -85,13 +117,28 @@ export function ProvidersPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <Button variant="ghost" size="icon-sm" aria-label="返回" onClick={onBack}>
-          <ChevronLeft className="size-4" />
-        </Button>
+        {view !== 'list' ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="返回"
+            onClick={() => {
+              // 表单页：编辑→列表，新增→预设页；预设页：→列表
+              setView(view === 'form' && !editing ? 'preset' : 'list');
+              setEditing(null);
+            }}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+        ) : onBack ? (
+          <Button variant="ghost" size="icon-sm" aria-label="返回" onClick={onBack}>
+            <ChevronLeft className="size-4" />
+          </Button>
+        ) : null}
         <h1 className="text-sm font-semibold">
           {view === 'list' && '供应商设置'}
           {view === 'preset' && '选择预设'}
-          {view === 'form' && (editing ? '编辑供应商' : `新增：${draftPreset.name}`)}
+          {view === 'form' && (editing ? `编辑：${editing.name}` : `新增：${draftPreset.name}`)}
         </h1>
       </header>
 
@@ -134,25 +181,6 @@ export function ProvidersPage({ onBack }: { onBack: () => void }) {
                 <Separator className="my-2" />
                 <div className="flex flex-col gap-3">
                   <h2 className="text-xs font-semibold text-muted-foreground">通用设置</h2>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="maxChars">正文提取上限（字符）</Label>
-                    <Input
-                      id="maxChars"
-                      type="number"
-                      min={8000}
-                      max={200000}
-                      step={1000}
-                      defaultValue={settings.maxContentChars}
-                      onBlur={(e) => {
-                        const n = Math.min(200_000, Math.max(8000, Number(e.target.value) || 48_000));
-                        e.target.value = String(n);
-                        patchSettings({ maxContentChars: n });
-                      }}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      超出部分将被截断（8,000 – 200,000，默认 48,000）
-                    </p>
-                  </div>
                   <div className="flex flex-col gap-1.5">
                     <Label>摘要语言</Label>
                     <Select

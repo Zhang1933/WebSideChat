@@ -1,4 +1,4 @@
-import { normalizeBaseUrl } from '@/lib/utils';
+import { normalizeBaseUrl, stripContextSuffix } from '@/lib/utils';
 import type { ExtractResult, ProtocolAdapter, SseEvent } from './types';
 
 /**
@@ -15,7 +15,7 @@ export const anthropicAdapter: ProtocolAdapter = {
         'anthropic-version': '2023-06-01',
       },
       body: {
-        model: provider.model,
+        model: stripContextSuffix(provider.model),
         system: req.system,
         messages: req.messages,
         max_tokens: req.maxTokens ?? 4096,

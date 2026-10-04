@@ -11,6 +11,8 @@ export interface Provider {
   apiKey: string;
   model: string;
   apiFormat: ApiFormat;
+  /** 上下文上限（token）；留空 = 自动：模型名以 [1m] 结尾取 1,000,000，否则 128,000 */
+  contextLimit?: number;
   /** 'deepseek' | 'kimi' | 'moonshot' | 'qwen' | 'openai' | 'anthropic' | 'ollama' | 'custom' */
   icon?: string;
   iconColor?: string;
@@ -30,6 +32,8 @@ export interface ProviderPreset {
   websiteUrl?: string;
   icon: string;
   iconColor?: string;
+  /** 配置文件导入格式提示：决定导入区的标题与占位符 */
+  importHint?: 'claude-settings' | 'codex' | 'gemini-env';
 }
 
 export interface ChatMessage {
@@ -44,8 +48,10 @@ export interface ExtractResult {
   siteName?: string;
   textContent: string;
   length: number;
-  /** true = Readability 解析失败，退化为 body.innerText */
+  /** true = Readability 未命中正文，退化为整页转换 */
   fallback: boolean;
+  /** 提取产物格式：markdown（turndown 转换）或 plaintext（innerText 兜底） */
+  format: 'markdown' | 'plaintext';
 }
 
 /** 按页面（pageKey）持久化的会话 */
@@ -64,11 +70,13 @@ export interface Conversation {
 }
 
 export interface AppSettings {
-  maxContentChars: number;
   summaryLanguage: 'zh' | 'en' | 'auto';
+  /** 自定义系统提示词（角色设定）；空/未设置 = 使用内置默认 */
+  customSystemPrompt?: string;
+  /** 自定义摘要指令；空/未设置 = 按 summaryLanguage 使用内置默认 */
+  customSummaryPrompt?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  maxContentChars: 48_000,
   summaryLanguage: 'zh',
 };

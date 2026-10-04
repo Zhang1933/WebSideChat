@@ -2,13 +2,12 @@ import { AlertCircle, Globe, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/Header';
 import { PageBar } from '@/components/PageBar';
-import { StaleBanner } from '@/components/StaleBanner';
-import { SummaryCard } from '@/components/SummaryCard';
-import { ChatPanel } from '@/components/chat/ChatPanel';
-import { ProvidersPage } from '@/components/providers/ProvidersPage';
-import { hasSummary, withMessage } from '@/lib/conversation';
+import { UnifiedChat } from '@/components/chat/UnifiedChat';
+import { CONTEXT_COMPRESSED_MARKER, hasSummary, withMessage } from '@/lib/conversation';
+import { compressThreshold, estimateConversationTokens } from '@/lib/context';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
-import { describeLlmError, streamChat } from '@/lib/llm/client';
+import { compressHistory, describeLlmError, streamChat } from '@/lib/llm/client';
+import { openProviderManager } from '@/lib/openOptions';
 import { buildSystemPrompt, summaryUserPrompt } from '@/lib/prompts';
 import {
   conversationsItem,
@@ -18,13 +17,11 @@ import {
   settingsItem,
 } from '@/lib/storage';
 import { useActiveTab } from '@/lib/tabs';
-import { pageKeyOf } from '@/lib/utils';
+import { contentBudgetChars, effectiveContextLimit, pageKeyOf } from '@/lib/utils';
 import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation, type Provider } from '@/types';
 
-type StreamTarget = 'summary' | 'chat' | null;
 
 export default function App() {
-  const [view, setView] = useState<'workspace' | 'settings'>('workspace');
   const tab = useActiveTab();
   const pageKey = tab.url ? pageKeyOf(tab.url) : null;
 
@@ -54,7 +51,6 @@ export default function App() {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [streaming, setStreaming] = useState(false);
-  const [streamTarget, setStreamTarget] = useState<StreamTarget>(null);
   const [streamText, setStreamText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -97,20 +93,61 @@ export default function App() {
       const turnId = ++turnSeqRef.current;
       const isActive = () => turnId === turnSeqRef.current && base.pageKey === pageKeyRef.current;
 
-      const withUser = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
-      setConversation(withUser);
+      let convNow = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
+      setConversation(convNow);
       setStreaming(true);
-      setStreamTarget(target);
       setStreamText('');
       setError(null);
+
+      // ---- 上下文预算：超阈值先调模型压缩历史，仍超再逐步缩减正文 ----
+      const threshold = compressThreshold(effectiveContextLimit(p));
+      let sys = buildSystemPrompt(convNow, settings);
+      if (estimateConversationTokens(sys, convNow.messages) > threshold) {
+        const pending = convNow.messages[convNow.messages.length - 1]!;
+        const history = convNow.messages.slice(0, -1);
+        if (history.length >= 2) {
+          let digest: string | null = null;
+          try {
+            digest = (await compressHistory(p, history, ac.signal)).trim() || null;
+          } catch {
+            digest = null; // 压缩调用失败 → 走正文缩减兜底
+          }
+          if (!isActive()) return;
+          if (digest) {
+            convNow = {
+              ...convNow,
+              messages: [
+                { role: 'user', content: CONTEXT_COMPRESSED_MARKER },
+                { role: 'assistant', content: digest },
+                pending,
+              ],
+            };
+            setConversation(convNow);
+            sys = buildSystemPrompt(convNow, settings);
+          }
+        }
+        // 仍超阈值（或压缩失败）：逐步缩减正文，直到估算放得下
+        while (
+          estimateConversationTokens(sys, convNow.messages) > threshold &&
+          convNow.content.length > 8_000
+        ) {
+          convNow = {
+            ...convNow,
+            content: convNow.content.slice(0, Math.floor(convNow.content.length * 0.6)),
+            truncated: true,
+          };
+          sys = buildSystemPrompt(convNow, settings);
+        }
+        void persistConversation(convNow);
+      }
 
       let acc = '';
 
       await streamChat(
         p,
         {
-          system: buildSystemPrompt(withUser, settings),
-          messages: withUser.messages,
+          system: sys,
+          messages: convNow.messages,
           maxTokens: 4096,
         },
         {
@@ -120,7 +157,7 @@ export default function App() {
           },
           onDone: (full) => {
             if (!isActive()) return;
-            const fin = withMessage(withUser, { role: 'assistant', content: full });
+            const fin = withMessage(convNow, { role: 'assistant', content: full });
             setConversation(fin);
             void persistConversation(fin);
           },
@@ -128,7 +165,7 @@ export default function App() {
             if (!isActive()) return;
             if (acc.trim()) {
               // 中断/出错但已有部分内容：保留并标注
-              const fin = withMessage(withUser, {
+              const fin = withMessage(convNow, {
                 role: 'assistant',
                 content: acc + '\n\n> ⚠️ ' + (err.kind === 'aborted' ? '生成已中断' : describeLlmError(err)),
               });
@@ -145,7 +182,6 @@ export default function App() {
       );
 
       setStreaming(false);
-      setStreamTarget(null);
       setStreamText('');
     },
     [currentProvider, settings],
@@ -165,7 +201,7 @@ export default function App() {
     setExtracting(true);
     setError(null);
     try {
-      const extract = await extractCurrentPage(tab.id, settings.maxContentChars);
+      const extract = await extractCurrentPage(tab.id, contentBudgetChars(currentProvider));
       const conv = conversationFromExtract({ pageKey: pageKeyOf(tab.url), url: tab.url, extract });
       setConversation(conv);
       await persistConversation(conv);
@@ -191,6 +227,10 @@ export default function App() {
       void extractAndSummarize();
       return;
     }
+    // 已有追问时重新生成 = 清空对话，需确认
+    if (hasSummary(conversation) && conversation.messages.length > 2) {
+      if (!confirm('重新生成摘要将清空后续追问对话，继续？')) return;
+    }
     const base = hasSummary(conversation) ? { ...conversation, messages: [] } : conversation;
     void runTurn('summary', summaryUserPrompt(settings), base);
   }, [conversation, settings, runTurn, extractAndSummarize]);
@@ -209,23 +249,14 @@ export default function App() {
 
   // ---- 渲染 ----
 
-  if (view === 'settings') {
-    return (
-      <div className="h-screen">
-        <ProvidersPage onBack={() => setView('workspace')} />
-      </div>
-    );
-  }
-
   const ready = hasSummary(conversation);
-  const summaryStreaming = streaming && streamTarget === 'summary';
 
   return (
     <div className="flex h-screen flex-col bg-background">
       <Header
         providers={providerList}
         currentProvider={currentProvider}
-        onOpenSettings={() => setView('settings')}
+        onOpenSettings={() => openProviderManager()}
       />
       <PageBar
         url={tab.url}
@@ -234,9 +265,6 @@ export default function App() {
         extracting={extracting}
         onReextract={reextract}
       />
-      {conversation && !streaming && !extracting && (
-        <StaleBanner extractedAt={conversation.extractedAt} onReextract={reextract} />
-      )}
 
       {error && (
         <div className="flex items-start gap-1.5 border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
@@ -255,7 +283,7 @@ export default function App() {
             <p className="text-sm text-muted-foreground">还没有配置 LLM 供应商</p>
             <button
               className="text-sm text-primary underline underline-offset-4"
-              onClick={() => setView('settings')}
+              onClick={() => openProviderManager({ add: true })}
             >
               去添加供应商
             </button>
@@ -281,25 +309,16 @@ export default function App() {
             )}
           </div>
         ) : (
-          <>
-            <SummaryCard
-              conversation={conversation}
-              hasSummary={ready}
-              streaming={summaryStreaming}
-              streamText={streamText}
-              disabled={!tab.url || streaming || extracting}
-              onGenerate={generateSummaryOnly}
-              onStop={stopStreaming}
-            />
-            <ChatPanel
-              conversation={conversation}
-              enabled={ready}
-              streaming={streaming && streamTarget === 'chat'}
-              streamText={streamText}
-              onSend={sendQuestion}
-              onStop={stopStreaming}
-            />
-          </>
+          <UnifiedChat
+            conversation={conversation}
+            ready={ready}
+            streaming={streaming}
+            streamText={streamText}
+            disabled={!tab.url || streaming || extracting}
+            onGenerateSummary={generateSummaryOnly}
+            onSend={sendQuestion}
+            onStop={stopStreaming}
+          />
         )}
       </main>
     </div>

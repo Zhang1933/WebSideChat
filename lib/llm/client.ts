@@ -1,4 +1,4 @@
-import type { Provider } from '@/types';
+import type { ChatMessage, Provider } from '@/types';
 import { anthropicAdapter } from './anthropic';
 import { openaiChatAdapter } from './openai-chat';
 import { SseParser } from './sse';
@@ -130,6 +130,45 @@ export async function streamChat(
 /** 把 LlmError 翻译成用户可读文案（UI 直接展示） */
 export function describeLlmError(err: LlmError): string {
   return err.message;
+}
+
+const COMPRESS_SYSTEM_PROMPT =
+  '你是上下文压缩器。请把提供的对话历史压缩成一份简洁但信息完整的纪要，必须保留：' +
+  '（1）此前摘要与回答中的关键事实、数据、结论；（2）用户提问的关注点与偏好；' +
+  '（3）尚未解决的问题。直接输出纪要正文（Markdown），不要任何解释或客套。';
+
+/**
+ * 上下文动态压缩：调用模型把对话历史压缩为纪要。
+ * 复用 streamChat（流式收集全文），失败抛出原始 LlmError 由调用方降级处理。
+ */
+export async function compressHistory(
+  provider: Provider,
+  history: ChatMessage[],
+  signal: AbortSignal,
+): Promise<string> {
+  let acc = '';
+  // 对象包装避免 TS 控制流把闭包内赋值的标志收窄为 null
+  const failureRef: { err?: LlmError } = {};
+  await streamChat(
+    provider,
+    { system: COMPRESS_SYSTEM_PROMPT, messages: history, maxTokens: 4096 },
+    {
+      onDelta: (full) => {
+        acc = full;
+      },
+      onDone: (full) => {
+        acc = full;
+      },
+      onError: (err) => {
+        failureRef.err = err;
+      },
+      signal,
+    },
+  );
+  if (failureRef.err) {
+    throw new Error(`上下文压缩失败：${failureRef.err.message}`);
+  }
+  return acc;
 }
 
 function isAbort(err: unknown): boolean {

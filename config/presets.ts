@@ -1,10 +1,62 @@
 import type { ProviderPreset } from '@/types';
 
 /**
- * 内置供应商预设（对齐 cc-switch 的预设思想：baseUrl 自带正确的版本段，
- * 代码只去尾斜杠拼固定后缀，绝不自动补 /v1）。
+ * 配置类型预设（新增第一步的大卡片，对齐 cc-switch 的 App 概念）：
+ * 每种类型绑定对应的配置文件导入格式。
+ */
+export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
+  {
+    id: 'claude',
+    name: 'Claude',
+    baseUrl: 'https://api.anthropic.com',
+    apiFormat: 'anthropic',
+    defaultModel: 'claude-sonnet-5',
+    apiKeyUrl: 'https://console.anthropic.com/settings/keys',
+    websiteUrl: 'https://www.anthropic.com',
+    icon: 'anthropic',
+    iconColor: '#D97757',
+    importHint: 'claude-settings',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    apiFormat: 'openai_chat',
+    defaultModel: 'gpt-5.1',
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
+    websiteUrl: 'https://openai.com',
+    icon: 'openai',
+    iconColor: '#10A37F',
+    importHint: 'codex',
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    apiFormat: 'openai_chat',
+    defaultModel: 'gemini-2.5-flash',
+    apiKeyUrl: 'https://aistudio.google.com/apikey',
+    websiteUrl: 'https://gemini.google.com',
+    icon: 'gemini',
+    iconColor: '#1A73E8',
+    importHint: 'gemini-env',
+  },
+];
+
+/**
+ * 供应商预设（配置类型下方的手动路径）：baseUrl 自带正确的版本段，
+ * 代码只去尾斜杠拼固定后缀，绝不自动补 /v1。
  */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
+  {
+    id: 'custom',
+    name: '自定义',
+    baseUrl: '',
+    apiFormat: 'openai_chat',
+    defaultModel: '',
+    icon: 'custom',
+    iconColor: '#737373',
+  },
   {
     id: 'deepseek',
     name: 'DeepSeek',
@@ -61,28 +113,6 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     iconColor: '#3859FF',
   },
   {
-    id: 'openai',
-    name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    apiFormat: 'openai_chat',
-    defaultModel: 'gpt-5.1',
-    apiKeyUrl: 'https://platform.openai.com/api-keys',
-    websiteUrl: 'https://openai.com',
-    icon: 'openai',
-    iconColor: '#10A37F',
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    baseUrl: 'https://api.anthropic.com',
-    apiFormat: 'anthropic',
-    defaultModel: 'claude-sonnet-5',
-    apiKeyUrl: 'https://console.anthropic.com/settings/keys',
-    websiteUrl: 'https://www.anthropic.com',
-    icon: 'anthropic',
-    iconColor: '#D97757',
-  },
-  {
     id: 'ollama',
     name: 'Ollama（本机）',
     baseUrl: 'http://localhost:11434/v1',
@@ -91,14 +121,5 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     websiteUrl: 'https://ollama.com',
     icon: 'ollama',
     iconColor: '#0D0D0D',
-  },
-  {
-    id: 'custom',
-    name: '自定义',
-    baseUrl: '',
-    apiFormat: 'openai_chat',
-    defaultModel: '',
-    icon: 'custom',
-    iconColor: '#737373',
   },
 ];

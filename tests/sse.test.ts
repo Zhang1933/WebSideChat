@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { anthropicAdapter } from '@/lib/llm/anthropic';
 import { openaiChatAdapter } from '@/lib/llm/openai-chat';
 import { SseParser } from '@/lib/llm/sse';
+import type { Provider } from '@/types';
+
+function providerWith(model: string, apiFormat: Provider['apiFormat']): Provider {
+  return {
+    id: 't',
+    name: 't',
+    baseUrl: 'https://api.example.com',
+    apiKey: 'sk-t',
+    model,
+    apiFormat,
+    createdAt: 0,
+  };
+}
 
 describe('SseParser', () => {
   it('解析单帧 data 事件', () => {
@@ -96,6 +109,24 @@ describe('openaiChatAdapter.extractDelta', () => {
     expect(openaiChatAdapter.extractFull({ choices: [{ message: { content: 'full' } }] })).toBe(
       'full',
     );
+  });
+});
+
+describe('buildRequest 剥离 [1m] 上下文后缀', () => {
+  it('openai_chat 协议发送真实模型名', () => {
+    const { body } = openaiChatAdapter.buildRequest(providerWith('glm-5.3[1m]', 'openai_chat'), {
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect((body as { model: string }).model).toBe('glm-5.3');
+  });
+
+  it('anthropic 协议发送真实模型名', () => {
+    const { body } = anthropicAdapter.buildRequest(providerWith('glm-5.3[1m]', 'anthropic'), {
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect((body as { model: string }).model).toBe('glm-5.3');
   });
 });
 

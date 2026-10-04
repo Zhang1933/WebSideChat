@@ -14,7 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
+import { parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
+import { ConfigImport } from './ConfigImport';
 
 const formSchema = z.object({
   name: z.string().min(1, '名称必填'),
@@ -25,6 +27,13 @@ const formSchema = z.object({
   apiKey: z.string(),
   model: z.string().min(1, '模型必填'),
   apiFormat: z.enum(['openai_chat', 'anthropic']),
+  // 留空 = 自动（模型名带 [1m] 后缀取 1,000,000，否则 128,000）
+  contextLimit: z
+    .string()
+    .refine(
+      (v) => v === '' || (Number.isFinite(Number(v)) && Number(v) >= 8_000 && Number(v) <= 10_000_000),
+      '留空，或 8,000 – 10,000,000 之间的数字',
+    ),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -66,27 +75,37 @@ export function ProviderForm({
       apiKey: editing?.apiKey ?? '',
       model: editing?.model ?? preset.defaultModel,
       apiFormat: editing?.apiFormat ?? preset.apiFormat,
+      contextLimit: editing?.contextLimit != null ? String(editing.contextLimit) : '',
     },
   });
 
   const apiFormat = watch('apiFormat');
+  const model = watch('model');
+  const autoContextLimit = parseContextSuffix(model)?.limit ?? 128_000;
 
-  async function loadModels() {
+  async function loadModels(override?: {
+    baseUrl?: string;
+    apiKey?: string;
+    apiFormat?: FormValues['apiFormat'];
+  }): Promise<string[] | null> {
     setFetchModelError(null);
     setFetchingModels(true);
     try {
       const list = await fetchModels({
-        baseUrl: watch('baseUrl'),
-        apiKey: watch('apiKey'),
-        apiFormat,
+        baseUrl: override?.baseUrl ?? watch('baseUrl'),
+        apiKey: override?.apiKey ?? watch('apiKey'),
+        apiFormat: override?.apiFormat ?? watch('apiFormat'),
       });
       if (list.length === 0) {
         setFetchModelError('接口返回空列表');
-      } else {
-        setModels(list.map((m) => m.id));
+        return null;
       }
+      const ids = list.map((m) => m.id);
+      setModels(ids);
+      return ids;
     } catch (err) {
       setFetchModelError(`获取失败：${(err as Error).message}`);
+      return null;
     } finally {
       setFetchingModels(false);
     }
@@ -94,6 +113,33 @@ export function ProviderForm({
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-4">
+      <ConfigImport
+        hint={preset.importHint}
+        onApply={async (draft) => {
+          if (draft.apiFormat) setValue('apiFormat', draft.apiFormat);
+          if (draft.baseUrl) setValue('baseUrl', draft.baseUrl);
+          if (draft.apiKey) setValue('apiKey', draft.apiKey);
+          if (draft.model) {
+            // 长度后缀（如 [1m]/[128k]）是上下文标记而非真实模型 ID：
+            // 提取数字写入上下文上限，模型名剥离后缀填入
+            const parsed = parseContextSuffix(draft.model);
+            if (parsed) {
+              setValue('contextLimit', String(parsed.limit));
+              setValue('model', parsed.baseModel);
+            } else {
+              setValue('model', draft.model);
+            }
+          }
+          // 导入后自动拉取模型列表；配置文件没带模型时默认选第一个
+          const ids = await loadModels({
+            baseUrl: draft.baseUrl,
+            apiKey: draft.apiKey,
+            apiFormat: draft.apiFormat,
+          });
+          if (ids && !draft.model) setValue('model', ids[0]!);
+        }}
+      />
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name">名称</Label>
         <Input id="name" placeholder="供应商显示名" {...register('name')} />
@@ -143,10 +189,10 @@ export function ProviderForm({
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="model">模型</Label>
+          <Label htmlFor="model">模型选择</Label>
           <button
             type="button"
-            onClick={loadModels}
+            onClick={() => void loadModels()}
             disabled={fetchingModels}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
@@ -177,6 +223,22 @@ export function ProviderForm({
         )}
         {fetchModelError && <p className="text-xs text-muted-foreground">{fetchModelError}</p>}
         {errors.model && <p className="text-xs text-destructive">{errors.model.message}</p>}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="contextLimit">上下文上限（token）</Label>
+        <Input
+          id="contextLimit"
+          type="number"
+          placeholder={`自动：${autoContextLimit.toLocaleString()}`}
+          {...register('contextLimit')}
+        />
+        <p className="text-[11px] text-muted-foreground">
+          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000。正文提取预算（上下文/2）与对话超限自动压缩均由此推导
+        </p>
+        {errors.contextLimit && (
+          <p className="text-xs text-destructive">{errors.contextLimit.message}</p>
+        )}
       </div>
 
       <div className="mt-2 flex justify-end gap-2">

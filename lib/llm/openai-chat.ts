@@ -1,4 +1,4 @@
-import { normalizeBaseUrl } from '@/lib/utils';
+import { normalizeBaseUrl, stripContextSuffix } from '@/lib/utils';
 import type { ExtractResult, ProtocolAdapter, SseEvent } from './types';
 
 /**
@@ -14,7 +14,7 @@ export const openaiChatAdapter: ProtocolAdapter = {
         Authorization: `Bearer ${provider.apiKey}`,
       },
       body: {
-        model: provider.model,
+        model: stripContextSuffix(provider.model),
         messages: [{ role: 'system', content: req.system }, ...req.messages],
         stream: true,
         ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}),

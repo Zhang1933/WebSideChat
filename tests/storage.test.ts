@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONVERSATIONS, pruneConversations, withMessage } from '@/lib/conversation';
-import { pageKeyOf, truncateContent } from '@/lib/utils';
+import {
+  contentBudgetChars,
+  effectiveContextLimit,
+  pageKeyOf,
+  parseContextSuffix,
+  stripContextSuffix,
+  truncateContent,
+} from '@/lib/utils';
 import type { Conversation } from '@/types';
 
 function conv(pageKey: string, updatedAt: number): Conversation {
@@ -71,5 +78,54 @@ describe('withMessage', () => {
     const next = withMessage(c, { role: 'user', content: 'hi' });
     expect(next.messages).toHaveLength(1);
     expect(next.updatedAt).toBeGreaterThanOrEqual(c.updatedAt);
+  });
+});
+
+describe('effectiveContextLimit', () => {
+  it('未配置时普通模型取默认 128,000 token', () => {
+    expect(effectiveContextLimit({ model: 'deepseek-chat' })).toBe(128_000);
+  });
+  it('模型名长度后缀推导（[1m] / [128k]）', () => {
+    expect(effectiveContextLimit({ model: 'kimi-k2[1m]' })).toBe(1_000_000);
+    expect(effectiveContextLimit({ model: 'glm-5[1M] ' })).toBe(1_000_000);
+    expect(effectiveContextLimit({ model: 'm[128k]' })).toBe(128_000);
+  });
+  it('显式配置优先于自动推导', () => {
+    expect(effectiveContextLimit({ model: 'm[1m]', contextLimit: 64_000 })).toBe(64_000);
+  });
+});
+
+describe('parseContextSuffix / stripContextSuffix', () => {
+  it('解析常见长度后缀', () => {
+    expect(parseContextSuffix('glm-5.3[1m]')).toEqual({ limit: 1_000_000, baseModel: 'glm-5.3' });
+    expect(parseContextSuffix('m[128k]')).toEqual({ limit: 128_000, baseModel: 'm' });
+    expect(parseContextSuffix('m[2M]')).toEqual({ limit: 2_000_000, baseModel: 'm' });
+    expect(parseContextSuffix('m[2000000]')).toEqual({ limit: 2_000_000, baseModel: 'm' });
+    expect(parseContextSuffix(' glm-5.3[1m] ')).toEqual({ limit: 1_000_000, baseModel: 'glm-5.3' });
+  });
+  it('非长度后缀 / 过小数值不识别', () => {
+    expect(parseContextSuffix('m[beta]')).toBeNull();
+    expect(parseContextSuffix('m[16]')).toBeNull();
+    expect(parseContextSuffix('deepseek-chat')).toBeNull();
+  });
+  it('strip 剥离长度后缀，保留非长度后缀', () => {
+    expect(stripContextSuffix('glm-5.3[1m]')).toBe('glm-5.3');
+    expect(stripContextSuffix('m[128k]')).toBe('m');
+    expect(stripContextSuffix('m[beta]')).toBe('m[beta]');
+    expect(stripContextSuffix('deepseek-chat')).toBe('deepseek-chat');
+  });
+});
+
+describe('contentBudgetChars', () => {
+  it('默认 128k 上下文 → 上下文/2 折算字符', () => {
+    // 128_000 / 2 * 1.7 = 108,800
+    expect(contentBudgetChars({ model: 'deepseek-chat' })).toBe(108_800);
+  });
+  it('[1m] 模型放大预算', () => {
+    expect(contentBudgetChars({ model: 'kimi[1m]' })).toBe(850_000);
+  });
+  it('预算有上下限 clamp', () => {
+    expect(contentBudgetChars({ model: 'm', contextLimit: 8_000 })).toBeGreaterThanOrEqual(4_000);
+    expect(contentBudgetChars({ model: 'm', contextLimit: 10_000_000 })).toBeLessThanOrEqual(1_000_000);
   });
 });

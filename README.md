@@ -13,7 +13,7 @@
 - **多供应商**：内置 DeepSeek / Kimi / 通义千问 / 智谱 / OpenAI / Anthropic / Ollama 预设，也可添加任意自定义端点
 - **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）；**Gemini** → env 配置（`GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`）。粘贴或选文件，自动识别回填表单并拉取模型列表
 - **提示词自定义**：设置页（左侧导航）可编辑系统提示词（角色设定）与摘要指令，支持恢复内置默认
-- **上下文管理**：每个供应商可配置**上下文上限（token）**（模型名带 `[1m]` 后缀自动取 1M，默认 128k）；正文提取预算 = 上下文/2；多轮对话超过阈值时**自动调用模型压缩历史**为纪要，仍超则逐步缩减正文
+- **上下文管理**：每个供应商可配置**上下文上限（token）**（模型名带长度后缀如 `[1m]`/`[128k]` 自动取对应值，默认 128k）；正文提取预算 = 上下文 × 0.8；多轮对话超过阈值时**自动调用模型压缩历史**为纪要，仍超则逐步缩减正文
 - **双协议**：`openai_chat`（`POST {baseUrl}/chat/completions`）与 `anthropic`（`POST {baseUrl}/v1/messages`），表单里可拉取 `/models` 模型列表
 
 ## 开发

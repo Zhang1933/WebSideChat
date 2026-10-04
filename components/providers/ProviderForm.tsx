@@ -234,7 +234,7 @@ export function ProviderForm({
           {...register('contextLimit')}
         />
         <p className="text-[11px] text-muted-foreground">
-          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000。正文提取预算（上下文/2）与对话超限自动压缩均由此推导
+          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000
         </p>
         {errors.contextLimit && (
           <p className="text-xs text-destructive">{errors.contextLimit.message}</p>

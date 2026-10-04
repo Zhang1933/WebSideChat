@@ -54,11 +54,11 @@ export function stripContextSuffix(model: string): string {
 }
 
 /**
- * 正文提取预算（字符）：上下文 / 2 的 token 预算按 ~1.7 字符/token 折算成字符，
- * 预留一半给问答历史与输出（超限时由动态压缩兜底）。128k → 108,800 字符；1m → 850,000 字符。
+ * 正文提取预算（字符）：上下文 × 0.8 的 token 预算按 ~1.7 字符/token 折算成字符，
+ * 预留 20% 给问答历史与输出（超限时由动态压缩兜底）。128k → 174,080 字符。
  */
 export function contentBudgetChars(provider: Pick<Provider, 'model' | 'contextLimit'>): number {
-  const budgetTokens = effectiveContextLimit(provider) / 2;
+  const budgetTokens = effectiveContextLimit(provider) * 0.8;
   const chars = Math.floor(budgetTokens * CHARS_PER_TOKEN);
   return Math.min(1_000_000, Math.max(4_000, chars));
 }

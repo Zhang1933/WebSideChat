@@ -117,12 +117,12 @@ describe('parseContextSuffix / stripContextSuffix', () => {
 });
 
 describe('contentBudgetChars', () => {
-  it('默认 128k 上下文 → 上下文/2 折算字符', () => {
-    // 128_000 / 2 * 1.7 = 108,800
-    expect(contentBudgetChars({ model: 'deepseek-chat' })).toBe(108_800);
+  it('默认 128k 上下文 → 上下文 × 0.8 折算字符', () => {
+    // 128_000 * 0.8 * 1.7 = 174,080
+    expect(contentBudgetChars({ model: 'deepseek-chat' })).toBe(174_080);
   });
-  it('[1m] 模型放大预算', () => {
-    expect(contentBudgetChars({ model: 'kimi[1m]' })).toBe(850_000);
+  it('[1m] 模型放大预算（clamp 到 100 万字符）', () => {
+    expect(contentBudgetChars({ model: 'kimi[1m]' })).toBe(1_000_000);
   });
   it('预算有上下限 clamp', () => {
     expect(contentBudgetChars({ model: 'm', contextLimit: 8_000 })).toBeGreaterThanOrEqual(4_000);

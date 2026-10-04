@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Settings } from 'lucide-react';
+import { Check, ChevronDown, Pin, PinOff, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,14 +12,27 @@ import { currentProviderIdItem } from '@/lib/storage';
 import type { Provider } from '@/types';
 import { ProviderIcon } from './providers/ProviderIcon';
 
-/** 顶部：当前供应商下拉切换 + 设置入口（联动 chrome.storage.watch） */
+/**
+ * 顶部：当前供应商下拉切换 + 设置入口（联动 chrome.storage.watch）。
+ * 抽屉模式（iframe 注入）额外显示 pin（新标签页自动展开）与 ×（关闭本页抽屉）。
+ */
 export function Header({
   providers,
   currentProvider,
+  inDrawer,
+  drawerPinned,
+  onToggleDrawerPin,
+  onCloseDrawer,
   onOpenSettings,
 }: {
   providers: Provider[];
   currentProvider: Provider | null;
+  /** 是否运行在注入式抽屉（iframe）中 */
+  inDrawer: boolean;
+  /** 抽屉模式：全局 pin 状态（新标签页自动展开） */
+  drawerPinned: boolean;
+  onToggleDrawerPin: () => void;
+  onCloseDrawer: () => void;
   onOpenSettings: () => void;
 }) {
   return (
@@ -67,9 +80,37 @@ export function Header({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button variant="ghost" size="icon-sm" aria-label="设置" onClick={onOpenSettings}>
-        <Settings className="size-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        {inDrawer && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={drawerPinned ? '取消自动展开：新标签页不再默认打开' : '新标签页自动展开'}
+              title={drawerPinned ? '已固定：新标签页自动展开（点击取消）' : '固定：新标签页自动展开'}
+              onClick={onToggleDrawerPin}
+            >
+              {drawerPinned ? (
+                <Pin className="size-4 fill-current text-primary" />
+              ) : (
+                <PinOff className="size-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="关闭抽屉"
+              title="关闭本页抽屉"
+              onClick={onCloseDrawer}
+            >
+              <X className="size-4" />
+            </Button>
+          </>
+        )}
+        <Button variant="ghost" size="icon-sm" aria-label="设置" onClick={onOpenSettings}>
+          <Settings className="size-4" />
+        </Button>
+      </div>
     </header>
   );
 }

@@ -4,12 +4,11 @@ import { ExtractViewerDialog } from '@/components/ExtractViewerDialog';
 import { Header } from '@/components/Header';
 import { PageBar } from '@/components/PageBar';
 import { UnifiedChat } from '@/components/chat/UnifiedChat';
-import { CONTEXT_COMPRESSED_MARKER, hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
-import { compressThreshold, estimateConversationTokens } from '@/lib/context';
+import { hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
-import { compressHistory, describeLlmError, streamChat } from '@/lib/llm/client';
+import type { DrawerMessage } from '@/lib/drawerMessages';
 import { openProviderManager } from '@/lib/openOptions';
-import { buildSystemPrompt, summaryUserPrompt } from '@/lib/prompts';
+import { summaryUserPrompt } from '@/lib/prompts';
 import {
   conversationsItem,
   currentProviderIdItem,
@@ -18,14 +17,42 @@ import {
   settingsItem,
 } from '@/lib/storage';
 import { useActiveTab } from '@/lib/tabs';
-import { contentBudgetChars, effectiveContextLimit, pageKeyOf } from '@/lib/utils';
+import { ensureOffscreenReady, type TurnMessage } from '@/lib/turnMessages';
+import { contentBudgetChars, pageKeyOf } from '@/lib/utils';
 import { isYouTubeWatchUrl } from '@/lib/youtube';
 import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation, type Provider } from '@/types';
 
+/** 抽屉模式：应用运行在注入 iframe 中（window.top ≠ window.self） */
+const IN_DRAWER = typeof window !== 'undefined' && window.self !== window.top;
 
 export default function App() {
   const tab = useActiveTab();
   const pageKey = tab.url ? pageKeyOf(tab.url) : null;
+
+  // ---- 抽屉模式：全局 pin 状态（新标签页自动展开） ----
+  const [drawerPinned, setDrawerPinned] = useState(false);
+  useEffect(() => {
+    if (!IN_DRAWER) return;
+    void browser.runtime
+      .sendMessage({ type: 'drawer:get-state' } satisfies DrawerMessage)
+      .then((state) => {
+        const s = state as { pinned?: boolean } | undefined;
+        setDrawerPinned(s?.pinned ?? false);
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleDrawerPin = useCallback(() => {
+    const next = !drawerPinned;
+    setDrawerPinned(next);
+    void browser.runtime
+      .sendMessage({ type: 'drawer:set-pinned', pinned: next } satisfies DrawerMessage)
+      .catch(() => {});
+  }, [drawerPinned]);
+
+  const closeDrawer = useCallback(() => {
+    window.parent.postMessage({ type: 'webchat-drawer', action: 'close' }, '*');
+  }, []);
 
   // ---- 配置（storage.watch 联动） ----
   const [providers, setProviders] = useState<Record<string, Provider>>({});
@@ -57,10 +84,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   /** 调试模式：查看提取内容弹窗 */
   const [contentViewerOpen, setContentViewerOpen] = useState(false);
-  // 每个页面独立的流控制器与轮次守卫（跨页互不影响）
-  const controllersRef = useRef<Map<string, AbortController>>(new Map());
-  const turnIdsRef = useRef<Map<string, number>>(new Map());
-  const turnSeqRef = useRef(0);
   const pageKeyRef = useRef<string | null>(pageKey);
 
   useEffect(() => {
@@ -73,15 +96,42 @@ export default function App() {
       if (cancelled) return;
       setConversation(pageKey ? (all[pageKey] ?? null) : null);
     });
-    // 切页不中断进行中的流：生成在后台继续完成并持久化到原页面会话
+    // 切页/关闭面板都不中断生成：回合引擎在 Offscreen Document 中常驻运行
     return () => {
       cancelled = true;
     };
   }, [pageKey]);
 
+  // ---- 订阅 Offscreen 回合事件（面板只是视图，重开面板也能接上在途流） ----
+  useEffect(() => {
+    const listener = (msg: TurnMessage) => {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'turn:delta') {
+        setStreamTexts((prev) =>
+          msg.pageKey in prev || msg.pageKey === pageKeyRef.current
+            ? { ...prev, [msg.pageKey]: msg.full }
+            : prev,
+        );
+      } else if (msg.type === 'turn:done' || msg.type === 'turn:error') {
+        setStreamTexts((prev) => {
+          if (!(msg.pageKey in prev)) return prev;
+          const next = { ...prev };
+          delete next[msg.pageKey];
+          return next;
+        });
+        if (msg.pageKey === pageKeyRef.current) {
+          setConversation(msg.conversation);
+          if (msg.type === 'turn:error' && msg.error) setError(msg.error);
+        }
+      }
+    };
+    browser.runtime.onMessage.addListener(listener);
+    return () => browser.runtime.onMessage.removeListener(listener);
+  }, []);
+
   // ---- 核心动作 ----
 
-  /** 发起一轮流式对话（摘要轮或追问轮） */
+  /** 发起一轮对话（摘要轮或追问轮）：交给 Offscreen Document 执行并广播进度 */
   const runTurn = useCallback(
     async (target: 'summary' | 'chat', userContent: string, base: Conversation) => {
       const p = currentProvider;
@@ -90,123 +140,42 @@ export default function App() {
         return;
       }
 
-      // 同一页面只保留一条流：发起新轮次前中止本页旧流（其他页面的流不受影响）
-      controllersRef.current.get(base.pageKey)?.abort();
-      const ac = new AbortController();
-      controllersRef.current.set(base.pageKey, ac);
-
-      const turnId = ++turnSeqRef.current;
-      turnIdsRef.current.set(base.pageKey, turnId);
-      // 轮次守卫：本页发起新轮次后，旧流不再写入状态/存储
-      const isActive = () => turnIdsRef.current.get(base.pageKey) === turnId;
-      // 视图守卫：切页后旧流仍完成后台持久化，但不再更新当前视图
-      const isViewing = () => base.pageKey === pageKeyRef.current;
-
-      let convNow = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
-      // 摘要轮的固定指令在 UI 中隐藏，记录原文供展示层识别
-      if (target === 'summary') convNow = { ...convNow, summaryPrompt: userContent };
-      if (isViewing()) setConversation(convNow);
+      // 乐观更新本地视图（引擎侧会以同样规则拼装并落库）
+      let optimistic = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
+      if (target === 'summary') optimistic = { ...optimistic, summaryPrompt: userContent };
+      if (base.pageKey === pageKeyRef.current) setConversation(optimistic);
       setStreamTexts((prev) => ({ ...prev, [base.pageKey]: '' }));
-      if (isViewing()) setError(null);
+      if (base.pageKey === pageKeyRef.current) setError(null);
 
-      // ---- 上下文预算：超阈值先调模型压缩历史，仍超再逐步缩减正文 ----
-      const threshold = compressThreshold(effectiveContextLimit(p));
-      let sys = buildSystemPrompt(convNow, settings);
-      if (estimateConversationTokens(sys, convNow.messages) > threshold) {
-        const pending = convNow.messages[convNow.messages.length - 1]!;
-        const history = convNow.messages.slice(0, -1);
-        if (history.length >= 2) {
-          let digest: string | null = null;
-          try {
-            digest = (await compressHistory(p, history, ac.signal)).trim() || null;
-          } catch {
-            digest = null; // 压缩调用失败 → 走正文缩减兜底
-          }
-          if (!isActive()) return;
-          if (digest) {
-            convNow = {
-              ...convNow,
-              messages: [
-                { role: 'user', content: CONTEXT_COMPRESSED_MARKER },
-                { role: 'assistant', content: digest },
-                pending,
-              ],
-            };
-            if (isViewing()) setConversation(convNow);
-            sys = buildSystemPrompt(convNow, settings);
-          }
+      try {
+        await ensureOffscreenReady();
+        // 带回执重试：offscreen 文档可能刚创建、脚本尚未注册监听（消息会丢失）
+        const start: TurnMessage = {
+          type: 'turn:start',
+          streamId: crypto.randomUUID(),
+          pageKey: base.pageKey,
+          provider: p,
+          settings,
+          conversation: base,
+          userContent,
+          target,
+        };
+        let acked = false;
+        for (let i = 0; i < 6 && !acked; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 250));
+          acked = (await browser.runtime.sendMessage(start)) === true;
         }
-        // 仍超阈值（或压缩失败）：逐步缩减正文，直到估算放得下
-        while (
-          estimateConversationTokens(sys, convNow.messages) > threshold &&
-          convNow.content.length > 8_000
-        ) {
-          convNow = {
-            ...convNow,
-            content: convNow.content.slice(0, Math.floor(convNow.content.length * 0.6)),
-            truncated: true,
-          };
-          sys = buildSystemPrompt(convNow, settings);
+        if (!acked) throw new Error('生成引擎未就绪（offscreen 无应答），请重试');
+      } catch (err) {
+        setStreamTexts((prev) => {
+          const next = { ...prev };
+          delete next[base.pageKey];
+          return next;
+        });
+        if (base.pageKey === pageKeyRef.current) {
+          setError(`发起生成失败：${(err as Error).message}`);
         }
-        void persistConversation(convNow);
       }
-
-      let acc = '';
-
-      await streamChat(
-        p,
-        {
-          system: sys,
-          messages: convNow.messages,
-          maxTokens: 4096,
-        },
-        {
-          onDelta: (full) => {
-            acc = full;
-            setStreamTexts((prev) => ({ ...prev, [base.pageKey]: full }));
-          },
-          onDone: (full) => {
-            if (!isActive()) return;
-            const fin = withMessage(convNow, { role: 'assistant', content: full });
-            // 后台完成（用户已切走）：照常落库，回来即见
-            void persistConversation(fin);
-            if (isViewing()) setConversation(fin);
-          },
-          onError: (err) => {
-            if (!isActive()) return;
-            if (acc.trim()) {
-              // 中断/出错但已有部分内容：保留并标注
-              const fin = withMessage(convNow, {
-                role: 'assistant',
-                content: acc + '\n\n> ⚠️ ' + (err.kind === 'aborted' ? '生成已中断' : describeLlmError(err)),
-              });
-              void persistConversation(fin);
-              if (isViewing()) setConversation(fin);
-            } else {
-              // 一无所获：保留用户提问（不回滚），补占位回复维持角色交替
-              const fin = withMessage(convNow, {
-                role: 'assistant',
-                content: err.kind === 'aborted' ? '*（已停止，未生成内容）*' : '*（未生成内容，请重试）*',
-              });
-              void persistConversation(fin);
-              if (isViewing()) {
-                setConversation(fin);
-                if (err.kind !== 'aborted') setError(describeLlmError(err));
-              }
-            }
-          },
-          signal: ac.signal,
-        },
-      );
-
-      // 结束本页流：清理隔离状态（不影响其他页面的进行中流）
-      setStreamTexts((prev) => {
-        const next = { ...prev };
-        delete next[base.pageKey];
-        return next;
-      });
-      controllersRef.current.delete(base.pageKey);
-      turnIdsRef.current.delete(base.pageKey);
     },
     [currentProvider, settings],
   );
@@ -284,19 +253,24 @@ export default function App() {
     [conversation, streamTexts, runTurn, extractAndSummarize],
   );
 
-  /** 停止当前查看页面的流（其他页面的后台流不受影响） */
+  /** 停止当前查看页面的流（引擎侧中止，其他页面的后台流不受影响） */
   const stopStreaming = useCallback(() => {
-    if (pageKey) controllersRef.current.get(pageKey)?.abort();
+    if (pageKey) {
+      void browser.runtime.sendMessage({ type: 'turn:cancel', pageKey } satisfies TurnMessage);
+    }
   }, [pageKey]);
 
   // ---- 渲染 ----
-
 
   return (
     <div className="flex h-screen flex-col bg-background">
       <Header
         providers={providerList}
         currentProvider={currentProvider}
+        inDrawer={IN_DRAWER}
+        drawerPinned={drawerPinned}
+        onToggleDrawerPin={toggleDrawerPin}
+        onCloseDrawer={closeDrawer}
         onOpenSettings={() => openProviderManager()}
       />
       <PageBar

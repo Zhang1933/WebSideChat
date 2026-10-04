@@ -121,29 +121,6 @@ describe('parseProviderConfig', () => {
     });
   });
 
-  it('解析 Gemini env 配置（env 包装）', () => {
-    const r = parseProviderConfig(
-      JSON.stringify({
-        env: {
-          GEMINI_API_KEY: 'AIza-xxx',
-          GOOGLE_GEMINI_BASE_URL: '',
-          GEMINI_MODEL: 'gemini-2.5-flash',
-        },
-      }),
-    );
-    expect(r.source).toBe('gemini-env');
-    expect(r.apiKey).toBe('AIza-xxx');
-    expect(r.model).toBe('gemini-2.5-flash');
-    // GOOGLE_GEMINI_BASE_URL 为空字符串 → 不覆盖表单预设
-    expect(r.baseUrl).toBeUndefined();
-  });
-
-  it('解析 Gemini 扁平 env（GOOGLE_API_KEY 变体）', () => {
-    const r = parseProviderConfig(JSON.stringify({ GOOGLE_API_KEY: 'k' }));
-    expect(r.source).toBe('gemini-env');
-    expect(r.apiKey).toBe('k');
-  });
-
   it('解析 Codex config.toml：model_provider 指向的 base_url', () => {
     const r = parseProviderConfig(
       'model = "gpt-5.1"\nmodel_provider = "custom"\n\n[model_providers.custom]\nname = "MyProxy"\nbase_url = "https://proxy.example.com/v1"\nwire_api = "chat"\n',
@@ -181,42 +158,6 @@ describe('parseProviderConfig', () => {
     );
     expect(r.source).toBe('codex-toml');
     expect(r.baseUrl).toBe('https://a.com');
-  });
-
-  it('解析 Grok config.toml（responses 后端 + context_window）', () => {
-    const r = parseProviderConfig(
-      [
-        '[models]',
-        'default = "grok-4.6"',
-        '',
-        '[model]',
-        '[model."grok-4.6"]',
-        'model = "grok-4.6"',
-        'base_url = "https://www.packyapi.ai/v1"',
-        'name = "PackyCode zgc"',
-        'api_backend = "responses"',
-        'context_window = 500000',
-        'api_key = "sk-test"',
-      ].join('\n'),
-    );
-    expect(r).toEqual({
-      source: 'grok-toml',
-      apiFormat: 'openai_responses',
-      baseUrl: 'https://www.packyapi.ai/v1',
-      apiKey: 'sk-test',
-      model: 'grok-4.6',
-      contextLimit: 500_000,
-    });
-  });
-
-  it('Grok toml 的 chat 后端映射 openai_chat，无 default 时取第一个条目', () => {
-    const r = parseProviderConfig(
-      '[model."m1"]\nmodel = "m1"\nbase_url = "https://g.com/v1"\napi_backend = "chat"\napi_key = "k"',
-    );
-    expect(r.source).toBe('grok-toml');
-    expect(r.apiFormat).toBe('openai_chat');
-    expect(r.model).toBe('m1');
-    expect(r.contextLimit).toBeUndefined();
   });
 
   it('无关 JSON 返回 unknown', () => {

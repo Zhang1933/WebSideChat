@@ -12,8 +12,8 @@
 - **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
 - **会话持久化**：按 URL（去 hash/跟踪参数）保存会话，切标签页/重启浏览器后恢复，LRU 保留最近 10 个页面
 - **多供应商**：内置 DeepSeek / Kimi / 通义千问 / 智谱 / OpenAI / Anthropic / Ollama 预设，也可添加任意自定义端点
-- **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）；**Gemini** → env 配置（`GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`）；**Grok** → `config.toml`（`[model."x"]` 表：`base_url`/`api_key`/`context_window`/`api_backend`）。粘贴或选文件，自动识别回填表单（含上下文上限）并拉取模型列表
-- **三协议 LLM 客户端**：`openai_chat`（chat/completions）、`anthropic`（v1/messages）、`openai_responses`（v1/responses，Grok/PackyAPI 等声明 `api_backend="responses"` 的端点）
+- **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）。粘贴或选文件，自动识别回填表单（含上下文上限）并拉取模型列表
+- **三协议 LLM 客户端**：`openai_chat`（chat/completions）、`anthropic`（v1/messages）、`openai_responses`（v1/responses，ChatGPT 登录与 `wire_api="responses"` 的端点）
 - **ChatGPT OAuth 网页登录**：OpenAI 类型表单的「网页登录」按钮复刻 `codex login` 的 PKCE 流程（跳转授权页 → 自动捕获回调 → 换取令牌，全程不接触密码）；也可导入 Codex 的 `auth.json`。OAuth 自动指向 `chatgpt.com/backend-api/codex` 后端并携带 Codex 标识头，令牌约 10 天有效，到期重新登录
 - **提示词自定义**：设置页（左侧导航）可编辑系统提示词（角色设定）与摘要指令，支持恢复内置默认
 - **上下文管理**：每个供应商可配置**上下文上限（token）**（模型名带长度后缀如 `[1m]`/`[128k]` 自动取对应值，默认 128k）；正文提取预算 = 上下文 × 0.8；多轮对话超过阈值时**自动调用模型压缩历史**为纪要，仍超则逐步缩减正文
@@ -39,7 +39,7 @@ npm run zip        # 打包 .output/*.zip（可上架/分发）
 1. **点击工具栏图标**：切换当前标签页的注入式抽屉侧边栏（**每个标签页独立开关**，默认新标签页不展开）
 2. 抽屉头部 **📌 pin**：开启后新建标签页自动展开抽屉；**×** 关闭本页抽屉
 3. 在 `chrome://` 等不可注入页面点图标 → 回退为原生侧边栏（同一应用）
-4. 首次使用点"去添加供应商"（或 ⚙）——在新标签页打开设置：选配置类型（Claude/OpenAI/Gemini/Grok，支持粘贴配置文件导入或 ChatGPT 网页登录）→ 保存即生效
+4. 首次使用点"去添加供应商"（或 ⚙）——在新标签页打开设置：选配置类型（Claude/OpenAI，支持粘贴配置文件导入或 ChatGPT 网页登录）→ 保存即生效
 5. 打开任意网页 → 点「帮我总结网页内容」气泡或直接提问；YouTube 视频页以字幕为上下文
 
 ## 架构

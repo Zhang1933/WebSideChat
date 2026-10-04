@@ -13,8 +13,6 @@ type HintKey = NonNullable<ProviderPreset['importHint']>;
 const HINT_TITLE: Record<HintKey, string> = {
   'claude-settings': '从 Claude settings.json 导入',
   codex: '从 OpenAI auth.json + config.toml 导入',
-  'gemini-env': '从 Gemini env 配置导入',
-  'grok-toml': '从 Grok config.toml 导入',
 };
 
 interface Slot {
@@ -45,10 +43,6 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
   const placeholder: Record<Exclude<HintKey, 'codex'>, string> = {
     'claude-settings':
       '{\n  "env": {\n    "ANTHROPIC_BASE_URL": "https://…",\n    "ANTHROPIC_AUTH_TOKEN": "sk-…",\n    "ANTHROPIC_MODEL": "claude-sonnet-5"\n  }\n}',
-    'gemini-env':
-      '{\n  "env": {\n    "GEMINI_API_KEY": "AIza…",\n    "GOOGLE_GEMINI_BASE_URL": "",\n    "GEMINI_MODEL": "gemini-2.5-flash"\n  }\n}',
-    'grok-toml':
-      '[models]\ndefault = "grok-4.6"\n\n[model."grok-4.6"]\nmodel = "grok-4.6"\nbase_url = "https://…"\napi_backend = "responses"\ncontext_window = 500000\napi_key = "sk-…"',
   };
   const key: Exclude<HintKey, 'codex'> = hint ?? 'claude-settings';
   return [
@@ -56,7 +50,7 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
       key: 'main',
       label: '',
       placeholder: placeholder[key],
-      accept: key === 'grok-toml' ? '.toml,.json,text/plain' : '.json,application/json',
+      accept: '.json,application/json',
     },
   ];
 }

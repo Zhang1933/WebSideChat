@@ -39,7 +39,7 @@ export interface ProviderPreset {
   icon: string;
   iconColor?: string;
   /** 配置文件导入格式提示：决定导入区的标题与占位符 */
-  importHint?: 'claude-settings' | 'codex' | 'gemini-env' | 'grok-toml';
+  importHint?: 'claude-settings' | 'codex';
 }
 
 export interface ChatMessage {

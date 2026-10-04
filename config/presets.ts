@@ -29,30 +29,6 @@ export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
     iconColor: '#10A37F',
     importHint: 'codex',
   },
-  {
-    id: 'gemini',
-    name: 'Gemini',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    apiFormat: 'openai_chat',
-    defaultModel: 'gemini-2.5-flash',
-    apiKeyUrl: 'https://aistudio.google.com/apikey',
-    websiteUrl: 'https://gemini.google.com',
-    icon: 'gemini',
-    iconColor: '#1A73E8',
-    importHint: 'gemini-env',
-  },
-  {
-    id: 'grok',
-    name: 'Grok',
-    baseUrl: 'https://api.x.ai/v1',
-    apiFormat: 'openai_responses',
-    defaultModel: 'grok-4.6',
-    apiKeyUrl: 'https://console.x.ai',
-    websiteUrl: 'https://grok.com',
-    icon: 'grok',
-    iconColor: '#000000',
-    importHint: 'grok-toml',
-  },
 ];
 
 /**

@@ -8,6 +8,12 @@ import { storage } from '#imports';
 
 export const DRAWER_WIDTH = 400;
 
+/** 抽屉宽度（像素，全局持久化；左缘拖拽调整） */
+export const drawerWidthItem = storage.defineItem<number>('local:drawerWidth', {
+  fallback: DRAWER_WIDTH,
+  version: 1,
+});
+
 /** 全局 pin：开启后新标签页自动展开抽屉 */
 export const drawerPinnedItem = storage.defineItem<boolean>('session:drawerPinned', {
   fallback: false,

@@ -151,36 +151,55 @@ export function ProvidersPage({
       <div className="flex-1 overflow-y-auto p-3">
         {view === 'list' && (
           <div className="flex flex-col gap-4">
-            {list.length === 0 && (
-              <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
-                还没有供应商，点击下方按钮添加
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              {list.map((p) => (
-                <ProviderCard
-                  key={p.id}
-                  provider={p}
-                  isCurrent={p.id === currentId}
-                  onUse={() => currentProviderIdItem.setValue(p.id)}
-                  onEdit={() => {
-                    setEditing(p);
-                    setDraftPreset(EMPTY_CUSTOM_PRESET);
-                    setView('form');
+            {list.length === 0 ? (
+              // 初始阶段：新增入口直接占据供应商卡片的位置，引导用户开始
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setView('preset');
+                }}
+                className="flex w-full items-center gap-3 rounded-lg border border-dashed p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent"
+              >
+                <div className="flex size-8 items-center justify-center rounded-md bg-secondary">
+                  <Plus className="size-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">新增供应商</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    还没有供应商——选择 Claude / OpenAI / Gemini / Grok，或粘贴配置文件导入
+                  </p>
+                </div>
+              </button>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2">
+                  {list.map((p) => (
+                    <ProviderCard
+                      key={p.id}
+                      provider={p}
+                      isCurrent={p.id === currentId}
+                      onUse={() => currentProviderIdItem.setValue(p.id)}
+                      onEdit={() => {
+                        setEditing(p);
+                        setDraftPreset(EMPTY_CUSTOM_PRESET);
+                        setView('form');
+                      }}
+                      onDelete={() => handleDelete(p)}
+                    />
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(null);
+                    setView('preset');
                   }}
-                  onDelete={() => handleDelete(p)}
-                />
-              ))}
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditing(null);
-                setView('preset');
-              }}
-            >
-              <Plus className="size-4" /> 新增供应商
-            </Button>
+                >
+                  <Plus className="size-4" /> 新增供应商
+                </Button>
+              </>
+            )}
 
             {settings && (
               <>

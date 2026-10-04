@@ -127,12 +127,14 @@ function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {
   const tokens = asRecord((asRecord(auth.tokens) ?? asRecord(obj.tokens)) ?? null);
   const accessToken = asString(tokens?.access_token);
   if (accessToken) {
-    // auth_mode=chatgpt：access_token 做 Bearer + chatgpt-account-id 头，端点走 /responses
+    // auth_mode=chatgpt：OAuth token 只被 chatgpt.com 的 Codex 后端接受
+    // （签发对象是 Codex 应用，在 api.openai.com 上直接 401），需带账号 ID 头
     return {
       source: 'codex-auth',
       apiFormat: 'openai_responses',
       apiKey: accessToken,
       accountId: asString(tokens?.account_id),
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
     };
   }
 

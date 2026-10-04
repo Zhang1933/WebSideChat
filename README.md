@@ -14,6 +14,7 @@
 - **多供应商**：内置 DeepSeek / Kimi / 通义千问 / 智谱 / OpenAI / Anthropic / Ollama 预设，也可添加任意自定义端点
 - **配置文件导入**（新增第一步选配置类型，对齐 cc-switch）：**Claude** → `settings.json`（`env.ANTHROPIC_*`）；**OpenAI** → `auth.json`（`OPENAI_API_KEY`）+ `config.toml`（`model` / `model_providers.*.base_url`，TOML 解析）；**Gemini** → env 配置（`GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` / `GEMINI_MODEL`）；**Grok** → `config.toml`（`[model."x"]` 表：`base_url`/`api_key`/`context_window`/`api_backend`）。粘贴或选文件，自动识别回填表单（含上下文上限）并拉取模型列表
 - **三协议 LLM 客户端**：`openai_chat`（chat/completions）、`anthropic`（v1/messages）、`openai_responses`（v1/responses，Grok/PackyAPI 等声明 `api_backend="responses"` 的端点）
+- **ChatGPT OAuth 网页登录**：OpenAI 类型表单的「网页登录」按钮复刻 `codex login` 的 PKCE 流程（跳转授权页 → 自动捕获回调 → 换取令牌，全程不接触密码）；也可导入 Codex 的 `auth.json`。OAuth 自动指向 `chatgpt.com/backend-api/codex` 后端并携带 Codex 标识头，令牌约 10 天有效，到期重新登录
 - **提示词自定义**：设置页（左侧导航）可编辑系统提示词（角色设定）与摘要指令，支持恢复内置默认
 - **上下文管理**：每个供应商可配置**上下文上限（token）**（模型名带长度后缀如 `[1m]`/`[128k]` 自动取对应值，默认 128k）；正文提取预算 = 上下文 × 0.8；多轮对话超过阈值时**自动调用模型压缩历史**为纪要，仍超则逐步缩减正文
 - **多标签页并行**：每个标签页是独立会话与独立流——可同时在多个标签页生成摘要/追问，互不打断；切页后流在后台继续完成并写入该页会话，切回即见（同一页面同时只有一条流，重新发起会中止该页旧流）

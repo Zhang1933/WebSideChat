@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FileUp, WandSparkles } from 'lucide-react';
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -69,16 +69,25 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
  */
 export function ConfigImport({
   hint,
+  prefill,
   onApply,
 }: {
   /** 配置类型（来自第一步的配置类型选择），决定导入区文案与输入框数量 */
   hint: ProviderPreset['importHint'];
+  /** 外部预填内容（如 OAuth 登录成功后生成的 auth.json / 默认 config.toml），键为槽位 key */
+  prefill?: Record<string, string>;
   onApply: (draft: ProviderDraft) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const slots = slotsFor(hint);
+
+  // 外部预填（OAuth 登录）→ 合并进对应输入框，用户可再编辑/重新解析
+  useEffect(() => {
+    if (!prefill) return;
+    setTexts((prev) => ({ ...prev, ...prefill }));
+  }, [prefill]);
 
   /** 解析所有非空框并合并应用；部分失败时仍应用成功部分并提示失败原因 */
   function applyMerged() {

@@ -126,6 +126,17 @@ describe('openaiResponsesAdapter', () => {
     expect(b.input).toEqual([{ role: 'user', content: 'hi' }]);
   });
 
+  it('ChatGPT OAuth（accountId）时带 Codex 后端标识头', () => {
+    const provider = { ...providerWith('gpt-5.6-sol', 'openai_responses'), accountId: 'org-123' };
+    const { headers } = openaiResponsesAdapter.buildRequest(provider, {
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect((headers as Record<string, string>)['chatgpt-account-id']).toBe('org-123');
+    expect((headers as Record<string, string>)['OpenAI-Beta']).toBe('responses=experimental');
+    expect((headers as Record<string, string>).originator).toBe('codex_cli_rs');
+  });
+
   it('output_text.delta 提取增量，response.completed 结束', () => {
     const d = openaiResponsesAdapter.extractDelta({
       data: '{"type":"response.output_text.delta","delta":"你好"}',

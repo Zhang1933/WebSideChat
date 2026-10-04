@@ -22,7 +22,7 @@ export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
     name: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
     apiFormat: 'openai_chat',
-    defaultModel: 'gpt-5.1',
+    defaultModel: 'gpt-5.5',
     apiKeyUrl: 'https://platform.openai.com/api-keys',
     websiteUrl: 'https://openai.com',
     icon: 'openai',

@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
+import { loginCodexOAuth } from '@/lib/oauth';
 import { parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
 import { ConfigImport } from './ConfigImport';
@@ -37,6 +38,18 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+/** OAuth 登录成功后预填的默认 config.toml（指向 ChatGPT Codex 后端，可编辑后重新解析） */
+const DEFAULT_CODEX_CONFIG_TOML = [
+  'model = "gpt-5.5"',
+  'model_provider = "openai"',
+  'model_reasoning_effort = "medium"',
+  '',
+  '[model_providers.openai]',
+  'name = "OpenAI (ChatGPT 登录)"',
+  'base_url = "https://chatgpt.com/backend-api/codex"',
+  'wire_api = "responses"',
+].join('\n');
 
 const BASE_URL_PLACEHOLDER: Record<FormValues['apiFormat'], string> = {
   openai_chat: '如 https://api.deepseek.com（自带版本段，无需自动补 /v1）',
@@ -63,6 +76,10 @@ export function ProviderForm({
   const [fetchModelError, setFetchModelError] = useState<string | null>(null);
   // ChatGPT OAuth 的账号 ID 来自导入（不在表单字段里），编辑时保留、导入时覆盖
   const [accountId, setAccountId] = useState<string | undefined>(editing?.accountId);
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [oauthMsg, setOauthMsg] = useState<string | null>(null);
+  /** OAuth 登录成功后生成的配置内容，预填到导入区输入框 */
+  const [importPrefill, setImportPrefill] = useState<Record<string, string> | undefined>();
 
   const {
     register,
@@ -85,6 +102,45 @@ export function ProviderForm({
   const apiFormat = watch('apiFormat');
   const model = watch('model');
   const autoContextLimit = parseContextSuffix(model)?.limit ?? 128_000;
+
+  /** ChatGPT 网页登录（同 codex login 的 PKCE 流程）：成功后生成 auth.json + 默认
+   *  config.toml 预填到导入区，并直接填入表单字段 */
+  async function handleCodexLogin() {
+    setOauthBusy(true);
+    setOauthMsg(null);
+    try {
+      const result = await loginCodexOAuth();
+      setValue('apiFormat', 'openai_responses');
+      setValue('baseUrl', 'https://chatgpt.com/backend-api/codex');
+      setValue('apiKey', result.access_token);
+      setValue('model', 'gpt-5.5');
+      setAccountId(result.account_id);
+      // 生成等效 auth.json + 默认 config.toml，预填导入区（可见、可改、可重新解析）
+      const authJson = JSON.stringify(
+        {
+          auth_mode: 'chatgpt',
+          OPENAI_API_KEY: null,
+          tokens: {
+            id_token: result.id_token,
+            access_token: result.access_token,
+            refresh_token: result.refresh_token,
+            account_id: result.account_id,
+          },
+          last_refresh: new Date().toISOString(),
+        },
+        null,
+        2,
+      );
+      setImportPrefill({ auth: authJson, toml: DEFAULT_CODEX_CONFIG_TOML });
+      setOauthMsg(
+        `登录成功${result.account_id ? `（账号 ${result.account_id.slice(0, 8)}…）` : ''}，已生成 auth.json 与默认 config.toml`,
+      );
+    } catch (err) {
+      setOauthMsg(`登录失败：${(err as Error).message}`);
+    } finally {
+      setOauthBusy(false);
+    }
+  }
 
   async function loadModels(override?: {
     baseUrl?: string;
@@ -119,8 +175,40 @@ export function ProviderForm({
       onSubmit={handleSubmit((values) => onSave(values, { accountId }))}
       className="flex flex-col gap-4"
     >
+      {preset.importHint === 'codex' && (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed p-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium">ChatGPT 账号登录（OAuth）</p>
+            <p className="text-[11px] text-muted-foreground">
+              跳转网页授权，成功后自动生成 auth.json 与默认 config.toml
+            </p>
+            {oauthMsg && (
+              <p
+                className={
+                  oauthMsg.startsWith('登录成功')
+                    ? 'text-[11px] text-primary'
+                    : 'text-[11px] text-destructive'
+                }
+              >
+                {oauthMsg}
+              </p>
+            )}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={oauthBusy}
+            onClick={() => void handleCodexLogin()}
+          >
+            {oauthBusy ? '等待登录…' : '网页登录'}
+          </Button>
+        </div>
+      )}
+
       <ConfigImport
         hint={preset.importHint}
+        prefill={importPrefill}
         onApply={async (draft) => {
           // OAuth 账号 ID 无条件覆盖：切回普通 Key 导入时清除
           setAccountId(draft.accountId);

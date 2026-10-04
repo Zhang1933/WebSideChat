@@ -13,8 +13,14 @@ export const openaiResponsesAdapter: ProtocolAdapter = {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${provider.apiKey}`,
-        // ChatGPT OAuth（access_token 鉴权）需要账号 ID 头
-        ...(provider.accountId ? { 'chatgpt-account-id': provider.accountId } : {}),
+        // ChatGPT OAuth（access_token 鉴权）：Codex 后端要求的标识头
+        ...(provider.accountId
+          ? {
+              'chatgpt-account-id': provider.accountId,
+              'OpenAI-Beta': 'responses=experimental',
+              originator: 'codex_cli_rs',
+            }
+          : {}),
       },
       body: {
         model: stripContextSuffix(provider.model),

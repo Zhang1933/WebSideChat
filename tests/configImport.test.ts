@@ -86,7 +86,7 @@ describe('parseProviderConfig', () => {
     expect(r.apiFormat).toBe('openai_chat');
   });
 
-  it('解析 ChatGPT OAuth 登录的 auth.json（OPENAI_API_KEY 为 null）', () => {
+  it('解析 ChatGPT OAuth 登录的 auth.json（OPENAI_API_KEY 为 null，Base URL 指向 Codex 后端）', () => {
     const r = parseProviderConfig(
       JSON.stringify({
         auth_mode: 'chatgpt',
@@ -104,6 +104,7 @@ describe('parseProviderConfig', () => {
       apiFormat: 'openai_responses',
       apiKey: 'eyJaccess...',
       accountId: '0e132663-6f7e-4019-8611-5080642c9bc8',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
     });
   });
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Globe } from 'lucide-react';
+import { AlertCircle, Globe, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExtractViewerDialog } from '@/components/ExtractViewerDialog';
 import { Header } from '@/components/Header';
@@ -243,13 +243,10 @@ export default function App() {
     [tab.id, tab.url, currentProvider, settings, runTurn],
   );
 
-  /** 已有会话时的重新提取（清空旧摘要与对话） */
+  /** 已有会话时的重新提取（清空旧摘要与对话，直接执行不弹确认） */
   const reextract = useCallback(() => {
-    if (conversation && conversation.messages.length > 0) {
-      if (!confirm('重新提取将清空当前摘要与对话记录，继续？')) return;
-    }
     void extractAndSummarize();
-  }, [conversation, extractAndSummarize]);
+  }, [extractAndSummarize]);
 
   /** 已有正文时的"生成/重新生成摘要"：重新生成会清空旧摘要与追问 */
   const generateSummaryOnly = useCallback(() => {
@@ -330,13 +327,14 @@ export default function App() {
 
       <main className="flex min-h-0 flex-1 flex-col">
         {!currentProvider ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
             <Globe className="size-8 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">还没有配置 LLM 供应商</p>
             <button
-              className="text-sm text-primary underline underline-offset-4"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
               onClick={() => openProviderManager({ add: true })}
             >
+              <Plus className="size-4" />
               去添加供应商
             </button>
           </div>

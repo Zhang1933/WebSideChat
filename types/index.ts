@@ -68,6 +68,8 @@ export interface Conversation {
   extractedAt: number;
   /** [0] 恒为摘要轮 */
   messages: ChatMessage[];
+  /** 摘要轮使用的固定指令原文（用于 UI 隐藏该条消息）；首轮直接提问的会话无此字段 */
+  summaryPrompt?: string;
   updatedAt: number;
 }
 

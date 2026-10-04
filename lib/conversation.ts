@@ -1,4 +1,5 @@
 import type { ChatMessage, Conversation } from '@/types';
+import { isDefaultSummaryPrompt } from './prompts';
 
 /** 会话保留上限（LRU，按 updatedAt） */
 export const MAX_CONVERSATIONS = 10;
@@ -52,4 +53,17 @@ export function withMessage(conversation: Conversation, message: ChatMessage): C
 export function hasSummary(conversation: Conversation | null | undefined): boolean {
   if (!conversation) return false;
   return conversation.messages.some((m) => m.role === 'assistant' && m.content.trim().length > 0);
+}
+
+/**
+ * 消息列表的展示起始下标：摘要轮的固定指令消息（messages[0]）不展示；
+ * 首轮直接提问的会话（无 summaryPrompt 且首条非摘要指令）从 0 开始全量展示。
+ */
+export function visibleStartIndex(conversation: Conversation): number {
+  const first = conversation.messages[0];
+  if (!first || first.role !== 'user') return 0;
+  const isSummaryPrompt = conversation.summaryPrompt
+    ? first.content === conversation.summaryPrompt
+    : isDefaultSummaryPrompt(first.content);
+  return isSummaryPrompt ? 1 : 0;
 }

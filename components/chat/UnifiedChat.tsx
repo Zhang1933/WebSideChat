@@ -2,32 +2,36 @@ import { Loader2, Send, Sparkles, Square } from 'lucide-react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { CONTEXT_COMPRESSED_MARKER } from '@/lib/conversation';
+import { CONTEXT_COMPRESSED_MARKER, visibleStartIndex } from '@/lib/conversation';
 import type { Conversation } from '@/types';
 import { MessageBubble } from './MessageBubble';
 
 /**
- * 统一对话流：摘要即第一条 AI 消息（messages[1]），追问接续在后。
- * messages[0] 是固定的摘要指令（canned prompt），不展示。
+ * 统一对话流（始终以对话框形式呈现）：
+ * - 空会话（无输入无历史）显示可点击的快捷气泡「帮我总结网页内容」，
+ *   同时输入框可用——用户可自由选择直接提问或一键总结
+ * - 有历史后：摘要/纪要即第一条 AI 消息，追问接续在后
  */
 export function UnifiedChat({
   conversation,
-  ready,
+  extracting,
   streaming,
   streamText,
   disabled,
-  onGenerateSummary,
+  onPresetSummary,
   onSend,
   onStop,
 }: {
-  conversation: Conversation;
-  /** 摘要轮已完成（首条 assistant 消息存在） */
-  ready: boolean;
+  /** 当前页面会话；null = 尚未提取（空会话） */
+  conversation: Conversation | null;
+  /** 正文提取中 */
+  extracting: boolean;
   streaming: boolean;
   streamText: string;
-  /** 无活动页面 / 提取中 / 生成中 */
+  /** 无活动页面 / 本页生成中 / 提取中 */
   disabled: boolean;
-  onGenerateSummary: () => void;
+  /** 点击快捷气泡「帮我总结网页内容」 */
+  onPresetSummary: () => void;
   onSend: (text: string) => void;
   onStop: () => void;
 }) {
@@ -36,7 +40,10 @@ export function UnifiedChat({
   // 贴底跟随：只有用户停留在底部附近时才自动滚动，翻阅历史不被拽回
   const stickToBottomRef = useRef(true);
 
-  const visibleMessages = conversation.messages.slice(1);
+  const visibleMessages = conversation
+    ? conversation.messages.slice(visibleStartIndex(conversation))
+    : [];
+  const showPreset = visibleMessages.length === 0 && !streaming;
 
   function handleListScroll() {
     const el = listRef.current;
@@ -47,14 +54,13 @@ export function UnifiedChat({
   useEffect(() => {
     const el = listRef.current;
     if (el && stickToBottomRef.current) {
-      // 直接滚容器自身，避免 scrollIntoView 连带滚动祖先容器
       el.scrollTop = el.scrollHeight;
     }
-  }, [conversation.messages.length, streamText]);
+  }, [conversation?.messages.length, streamText]);
 
   function send() {
     const text = input.trim();
-    if (!text || streaming || !ready) return;
+    if (!text || streaming || disabled) return;
     setInput('');
     onSend(text);
   }
@@ -66,15 +72,6 @@ export function UnifiedChat({
         onScroll={handleListScroll}
         className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3"
       >
-        {!ready && !streaming && (
-          <div className="flex flex-col items-center gap-2 py-6">
-            <p className="text-[11px] text-muted-foreground">生成摘要后即可针对本页内容追问</p>
-            <Button size="sm" disabled={disabled} onClick={onGenerateSummary}>
-              <Sparkles className="size-3.5" /> 生成摘要
-            </Button>
-          </div>
-        )}
-
         {visibleMessages.map((m, i) => {
           // 压缩标记 → 提示行（不渲染为气泡）
           if (m.role === 'user' && m.content === CONTEXT_COMPRESSED_MARKER) {
@@ -108,6 +105,26 @@ export function UnifiedChat({
         )}
       </div>
 
+      {/* 空会话时：快捷总结气泡紧贴输入框上方，而不是远在消息区顶部 */}
+      {showPreset &&
+        (extracting ? (
+          <p className="flex items-center justify-center gap-1.5 px-3 pb-1.5 text-[11px] text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" /> 正在提取页面正文…
+          </p>
+        ) : (
+          <div className="flex justify-center px-3 pb-1.5">
+            <button
+              type="button"
+              onClick={onPresetSummary}
+              disabled={disabled}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-secondary px-3.5 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-50"
+            >
+              <Sparkles className="size-3.5 text-primary" />
+              帮我总结网页内容
+            </button>
+          </div>
+        ))}
+
       <div className="flex items-end gap-2 border-t p-2.5">
         <Textarea
           value={input}
@@ -118,8 +135,8 @@ export function UnifiedChat({
               send();
             }
           }}
-          placeholder={ready ? '针对本页内容提问，Enter 发送' : '请先生成摘要'}
-          disabled={!ready}
+          placeholder="针对本页内容提问，Enter 发送"
+          disabled={disabled && !streaming}
           rows={2}
           className="max-h-32 min-h-9 resize-none text-sm"
         />
@@ -131,7 +148,7 @@ export function UnifiedChat({
           <Button
             size="icon-sm"
             aria-label="发送"
-            disabled={!input.trim() || !ready}
+            disabled={!input.trim() || disabled}
             onClick={send}
           >
             <Send className="size-3.5" />

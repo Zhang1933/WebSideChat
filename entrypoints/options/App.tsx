@@ -20,7 +20,7 @@ export default function App() {
     <div className="flex min-h-screen bg-background text-foreground">
       <aside className="flex w-44 shrink-0 flex-col border-r">
         <div className="border-b px-4 py-4">
-          <h1 className="text-base font-bold">AbstractWeb</h1>
+          <h1 className="text-base font-bold">WebChat</h1>
           <p className="text-[11px] text-muted-foreground">设置</p>
         </div>
         <nav className="flex flex-col gap-0.5 p-2">

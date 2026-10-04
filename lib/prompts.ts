@@ -27,6 +27,11 @@ export function summaryUserPrompt(settings: AppSettings): string {
   return settings.customSummaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPTS[settings.summaryLanguage];
 }
 
+/** 是否为内置摘要指令（用于识别并隐藏历史会话里的摘要轮指令消息） */
+export function isDefaultSummaryPrompt(text: string): boolean {
+  return new Set(Object.values(DEFAULT_SUMMARY_PROMPTS)).has(text.trim());
+}
+
 /** system 提示：网页正文 + 元数据作为常驻上下文（摘要与追问共享） */
 export function buildSystemPrompt(conversation: Conversation, settings: AppSettings): string {
   const meta = [

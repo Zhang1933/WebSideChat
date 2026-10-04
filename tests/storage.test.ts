@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CONVERSATIONS, pruneConversations, withMessage } from '@/lib/conversation';
+import {
+  MAX_CONVERSATIONS,
+  pruneConversations,
+  visibleStartIndex,
+  withMessage,
+} from '@/lib/conversation';
+import { DEFAULT_SUMMARY_PROMPTS } from '@/lib/prompts';
 import {
   contentBudgetChars,
   effectiveContextLimit,
@@ -78,6 +84,46 @@ describe('withMessage', () => {
     const next = withMessage(c, { role: 'user', content: 'hi' });
     expect(next.messages).toHaveLength(1);
     expect(next.updatedAt).toBeGreaterThanOrEqual(c.updatedAt);
+  });
+});
+
+describe('visibleStartIndex', () => {
+  it('summaryPrompt 匹配的首条指令消息被隐藏', () => {
+    const c: Conversation = {
+      ...conv('a', 1),
+      summaryPrompt: '总结指令',
+      messages: [
+        { role: 'user', content: '总结指令' },
+        { role: 'assistant', content: '摘要' },
+      ],
+    };
+    expect(visibleStartIndex(c)).toBe(1);
+  });
+
+  it('无 summaryPrompt 时按内置默认摘要指令识别（兼容旧会话）', () => {
+    const c: Conversation = {
+      ...conv('a', 1),
+      messages: [
+        { role: 'user', content: DEFAULT_SUMMARY_PROMPTS.zh },
+        { role: 'assistant', content: '摘要' },
+      ],
+    };
+    expect(visibleStartIndex(c)).toBe(1);
+  });
+
+  it('首轮直接提问的会话全量展示', () => {
+    const c: Conversation = {
+      ...conv('a', 1),
+      messages: [
+        { role: 'user', content: '这个页面讲了什么？' },
+        { role: 'assistant', content: '回答' },
+      ],
+    };
+    expect(visibleStartIndex(c)).toBe(0);
+  });
+
+  it('空会话返回 0', () => {
+    expect(visibleStartIndex(conv('a', 1))).toBe(0);
   });
 });
 

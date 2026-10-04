@@ -1,6 +1,6 @@
 {
-  "name": "abstractweb",
-  "description": "Summarize the current page and chat with it, right in the side panel.",
+  "name": "webchat",
+  "description": "webchat能帮你摘要网页内容、回答网页问题。",
   "private": true,
   "version": "0.1.0",
   "type": "module",

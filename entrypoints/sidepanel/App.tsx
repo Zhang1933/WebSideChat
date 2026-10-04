@@ -1,4 +1,4 @@
-import { AlertCircle, Globe, Sparkles } from 'lucide-react';
+import { AlertCircle, Globe } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/Header';
 import { PageBar } from '@/components/PageBar';
@@ -99,6 +99,8 @@ export default function App() {
       const isViewing = () => base.pageKey === pageKeyRef.current;
 
       let convNow = withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage);
+      // 摘要轮的固定指令在 UI 中隐藏，记录原文供展示层识别
+      if (target === 'summary') convNow = { ...convNow, summaryPrompt: userContent };
       if (isViewing()) setConversation(convNow);
       setStreamTexts((prev) => ({ ...prev, [base.pageKey]: '' }));
       if (isViewing()) setError(null);
@@ -200,31 +202,37 @@ export default function App() {
     [currentProvider, settings],
   );
 
-  /** 提取正文 + 生成摘要（首次或重新提取） */
-  const extractAndSummarize = useCallback(async () => {
-    if (tab.id == null || !tab.url) {
-      setError('没有可提取的页面');
-      return;
-    }
-    if (!currentProvider) {
-      setError('请先在设置中配置并启用一个供应商');
-      return;
-    }
-    // 本页旧流由 runTurn 内部按 pageKey 中止，无需全局 abort
-    setExtracting(true);
-    setError(null);
-    try {
-      const extract = await extractCurrentPage(tab.id, contentBudgetChars(currentProvider));
-      const conv = conversationFromExtract({ pageKey: pageKeyOf(tab.url), url: tab.url, extract });
-      setConversation(conv);
-      await persistConversation(conv);
-      setExtracting(false);
-      await runTurn('summary', summaryUserPrompt(settings), conv);
-    } catch (err) {
-      setExtracting(false);
-      setError(err instanceof ExtractError ? err.message : `提取失败：${String(err)}`);
-    }
-  }, [tab.id, tab.url, currentProvider, settings, runTurn]);
+  /** 提取正文 + 开启对话（默认摘要轮；传入 firstUserContent 则首轮直接回答该问题） */
+  const extractAndSummarize = useCallback(
+    async (firstUserContent?: string) => {
+      if (tab.id == null || !tab.url) {
+        setError('没有可提取的页面');
+        return;
+      }
+      if (!currentProvider) {
+        setError('请先在设置中配置并启用一个供应商');
+        return;
+      }
+      setExtracting(true);
+      setError(null);
+      try {
+        const extract = await extractCurrentPage(tab.id, contentBudgetChars(currentProvider));
+        const conv = conversationFromExtract({ pageKey: pageKeyOf(tab.url), url: tab.url, extract });
+        setConversation(conv);
+        await persistConversation(conv);
+        setExtracting(false);
+        await runTurn(
+          firstUserContent ? 'chat' : 'summary',
+          firstUserContent ?? summaryUserPrompt(settings),
+          conv,
+        );
+      } catch (err) {
+        setExtracting(false);
+        setError(err instanceof ExtractError ? err.message : `提取失败：${String(err)}`);
+      }
+    },
+    [tab.id, tab.url, currentProvider, settings, runTurn],
+  );
 
   /** 已有会话时的重新提取（清空旧摘要与对话） */
   const reextract = useCallback(() => {
@@ -250,10 +258,15 @@ export default function App() {
 
   const sendQuestion = useCallback(
     (text: string) => {
-      if (!conversation || conversation.pageKey in streamTexts) return;
+      if (!conversation) {
+        // 首次提问：先静默提取正文，再带着问题进入对话
+        void extractAndSummarize(text);
+        return;
+      }
+      if (conversation.pageKey in streamTexts) return;
       void runTurn('chat', text, conversation);
     },
-    [conversation, streamTexts, runTurn],
+    [conversation, streamTexts, runTurn, extractAndSummarize],
   );
 
   /** 停止当前查看页面的流（其他页面的后台流不受影响） */
@@ -263,7 +276,6 @@ export default function App() {
 
   // ---- 渲染 ----
 
-  const ready = hasSummary(conversation);
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -302,34 +314,14 @@ export default function App() {
               去添加供应商
             </button>
           </div>
-        ) : !conversation ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-            <Sparkles className="size-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              {extracting
-                ? '正在提取页面正文…'
-                : tab.url
-                  ? '提取当前页面并生成 AI 摘要'
-                  : '打开一个网页后再试'}
-            </p>
-            {tab.url && !extracting && (
-              <button
-                className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-                disabled={pageKey != null && pageKey in streamTexts}
-                onClick={() => void extractAndSummarize()}
-              >
-                {extracting ? '提取中…' : '提取并生成摘要'}
-              </button>
-            )}
-          </div>
         ) : (
           <UnifiedChat
             conversation={conversation}
-            ready={ready}
-            streaming={conversation.pageKey in streamTexts}
-            streamText={streamTexts[conversation.pageKey] ?? ''}
+            extracting={extracting}
+            streaming={conversation != null && conversation.pageKey in streamTexts}
+            streamText={conversation ? (streamTexts[conversation.pageKey] ?? '') : ''}
             disabled={!tab.url || (pageKey != null && pageKey in streamTexts) || extracting}
-            onGenerateSummary={generateSummaryOnly}
+            onPresetSummary={generateSummaryOnly}
             onSend={sendQuestion}
             onStop={stopStreaming}
           />

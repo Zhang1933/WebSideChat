@@ -22,6 +22,32 @@ export interface ExtractSuccess {
   truncated: boolean;
 }
 
+/** 等待 content script 的异步提取结果（YouTube 路径经 runtime.sendMessage 回传） */
+function waitForAsyncExtract(tabId: number, timeoutMs = 30_000): Promise<ExtractResult> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new ExtractError('字幕提取超时，请重试'));
+    }, timeoutMs);
+    const listener = (msg: unknown, sender: { tab?: { id?: number } }) => {
+      const m = msg as { type?: string; result?: ExtractResult } | null;
+      if (!m || m.type !== 'webchat-extract-result') return;
+      if (sender?.tab?.id !== tabId) return;
+      cleanup();
+      if (!m.result) {
+        reject(new ExtractError('字幕提取结果无效'));
+        return;
+      }
+      resolve(m.result);
+    };
+    function cleanup() {
+      clearTimeout(timer);
+      browser.runtime.onMessage.removeListener(listener);
+    }
+    browser.runtime.onMessage.addListener(listener);
+  });
+}
+
 /** 注入提取脚本并截断正文（在 Side Panel 上下文调用） */
 export async function extractCurrentPage(
   tabId: number,
@@ -33,13 +59,22 @@ export async function extractCurrentPage(
       target: { tabId },
       files: ['/content-scripts/extract.js'],
     });
-    raw = results[0]?.result as ExtractResult | undefined;
+    const first = results[0]?.result as ExtractResult | { asyncPending?: boolean } | undefined;
+    // YouTube 分支：注入不等待 Promise，改等消息回传
+    if (first && typeof first === 'object' && (first as { asyncPending?: boolean }).asyncPending) {
+      raw = await waitForAsyncExtract(tabId);
+    } else {
+      raw = first as ExtractResult | undefined;
+    }
   } catch (err) {
     throw friendlyError(err);
   }
 
   if (!raw || typeof raw.textContent !== 'string') {
     throw new ExtractError('提取结果为空，请重试或换一个页面');
+  }
+  if (raw.error) {
+    throw new ExtractError(raw.error);
   }
   const { text, truncated } = truncateContent(raw.textContent, maxChars);
   return { raw, content: text, truncated };

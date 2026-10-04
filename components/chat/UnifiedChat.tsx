@@ -14,6 +14,7 @@ import { MessageBubble } from './MessageBubble';
  */
 export function UnifiedChat({
   conversation,
+  isVideo,
   extracting,
   streaming,
   streamText,
@@ -24,7 +25,9 @@ export function UnifiedChat({
 }: {
   /** 当前页面会话；null = 尚未提取（空会话） */
   conversation: Conversation | null;
-  /** 正文提取中 */
+  /** YouTube 观看页：以字幕为上下文，快捷气泡文案切换为"视频" */
+  isVideo: boolean;
+  /** 正文/字幕提取中 */
   extracting: boolean;
   streaming: boolean;
   streamText: string;
@@ -112,7 +115,7 @@ export function UnifiedChat({
             <Loader2 className="size-3 animate-spin" /> 正在提取页面正文…
           </p>
         ) : (
-          <div className="flex justify-center px-3 pb-1.5">
+          <div className="flex justify-end px-3 pb-1.5">
             <button
               type="button"
               onClick={onPresetSummary}
@@ -120,7 +123,7 @@ export function UnifiedChat({
               className="inline-flex items-center gap-1.5 rounded-full border bg-secondary px-3.5 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-50"
             >
               <Sparkles className="size-3.5 text-primary" />
-              帮我总结网页内容
+              {isVideo ? '帮我总结视频内容' : '帮我总结网页内容'}
             </button>
           </div>
         ))}

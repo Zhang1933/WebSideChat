@@ -18,6 +18,7 @@ import {
 } from '@/lib/storage';
 import { useActiveTab } from '@/lib/tabs';
 import { contentBudgetChars, effectiveContextLimit, pageKeyOf } from '@/lib/utils';
+import { isYouTubeWatchUrl } from '@/lib/youtube';
 import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation, type Provider } from '@/types';
 
 
@@ -317,6 +318,7 @@ export default function App() {
         ) : (
           <UnifiedChat
             conversation={conversation}
+            isVideo={tab.url ? isYouTubeWatchUrl(tab.url) : false}
             extracting={extracting}
             streaming={conversation != null && conversation.pageKey in streamTexts}
             streamText={conversation ? (streamTexts[conversation.pageKey] ?? '') : ''}

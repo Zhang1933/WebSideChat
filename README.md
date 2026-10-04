@@ -7,6 +7,7 @@
 ## 功能
 
 - **正文提取**：按需注入（非常驻 content script，不拖慢页面）——Readability 定位正文容器后 **DOM→Markdown 转换**（turndown + GFM），保留标题层级/列表/表格/链接；非文章页退化为整页清洗转换，最终兜底 `innerText`
+- **YouTube 视频总结/对话**：识别到 youtube.com 观看页（watch/shorts）时以**字幕**替代网页正文作为上下文——参考 youtube-transcript-api 方案：页面内提取 `INNERTUBE_API_KEY` 调 **Innertube player（ANDROID 客户端）** 拿字幕轨道（免 pot），页面内嵌 `ytInitialPlayerResponse` 兜底；轨道选择中文 > 手动上传，`timedtext` 拉取（json3 → XML 降级），生成 `[时:分:秒]` 时间戳稿，可问"第 X 分钟讲了什么"；风控/年龄限制/无字幕均有明确提示
 - **AI 摘要**：流式 Markdown 渲染（打字机效果），可随时停止并保留已生成部分
 - **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
 - **会话持久化**：按 URL（去 hash/跟踪参数）保存会话，切标签页/重启浏览器后恢复，LRU 保留最近 10 个页面

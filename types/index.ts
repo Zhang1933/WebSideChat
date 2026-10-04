@@ -54,6 +54,8 @@ export interface ExtractResult {
   fallback: boolean;
   /** 提取产物格式：markdown（turndown 转换）或 plaintext（innerText 兜底） */
   format: 'markdown' | 'plaintext';
+  /** 提取失败的可读原因（如 YouTube 视频无字幕）；有值时 panel 侧转为错误 */
+  error?: string;
 }
 
 /** 按页面（pageKey）持久化的会话 */

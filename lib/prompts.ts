@@ -35,12 +35,8 @@ const LANG_INSTRUCTION: Record<AppSettings['summaryLanguage'], string> = {
   auto: '请使用与网页正文相同的语言回复。',
 };
 
-/** 系统提示词正文之前的角色设定（自定义优先；按视频/网页场景取对应默认与自定义） */
-export function systemRole(settings: AppSettings, isVideo = false): string {
-  const custom = (
-    isVideo ? settings.customVideoSystemPrompt : settings.customWebSystemPrompt
-  )?.trim();
-  if (custom) return custom;
+/** 系统提示词正文之前的角色设定（内置，不允许用户自定义） */
+export function systemRole(_settings: AppSettings, isVideo = false): string {
   return isVideo ? DEFAULT_VIDEO_SYSTEM_PROMPT : DEFAULT_WEB_SYSTEM_PROMPT;
 }
 

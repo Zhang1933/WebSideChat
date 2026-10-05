@@ -143,13 +143,28 @@ export default defineBackground(() => {
         .catch(() => {
           drawerTabs.delete(tabId); // 脚本已失效（导航去了不可注入页）
         });
-    } else {
-      // 同步调用保住手势；成功后记住面板所属标签（供配置页收起时定向 close）
-      void browser.sidePanel
-        .open({ tabId })
-        .then(() => lastPanelTabItem.setValue(tabId))
-        .catch((err) => console.error('[WebSideChat] open panel failed:', err));
+      return;
     }
+    // tabs 权限下 URL 同步可见：http(s) 页 → 按需注入抽屉（标签独立），
+    // 覆盖"扩展重载后旧页面脚本失效"的场景，不再回退窗口级的原生面板；
+    // 图标本次点击的 activeTab 恰好覆盖注入权限。
+    if (/^https?:/.test(tab.url ?? '')) {
+      void drawerOpenItem(tabId)
+        .setValue(true) // 注入前先置开 → 脚本 get-state 初始化即展开
+        .then(() =>
+          browser.scripting.executeScript({
+            target: { tabId },
+            files: ['/content-scripts/drawer.js'],
+          }),
+        )
+        .catch((err) => console.warn('[WebSideChat] drawer 注入失败:', err));
+      return;
+    }
+    // chrome:// 等不可注入页 → 原生侧边栏（同步调用保住手势）
+    void browser.sidePanel
+      .open({ tabId })
+      .then(() => lastPanelTabItem.setValue(tabId))
+      .catch((err) => console.error('[WebSideChat] open panel failed:', err));
   });
 
   browser.runtime.onMessage.addListener((msg: DrawerMessage | TurnMessage, sender) => {

@@ -10,6 +10,13 @@ export default defineContentScript({
   matches: ['http://*/*', 'https://*/*'],
 
   main() {
+    // 幂等：页面已有抽屉实例（图标按需注入遇到存活脚本，如 SW 重启丢了注册表）
+    // → 只重新注册 hello，不重复注入第二个宿主
+    if (document.getElementById('websidechat-drawer-host')) {
+      void browser.runtime.sendMessage({ type: 'drawer:hello' }).catch(() => {});
+      return;
+    }
+
     let open = false;
     let iframe: HTMLIFrameElement | null = null;
     let width = DRAWER_WIDTH;

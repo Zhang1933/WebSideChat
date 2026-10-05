@@ -1,6 +1,6 @@
 <h1 align="center">
 <sub>
-<img src="https://github.com/Zhang1933/WebSideChat/blob/main/assets/icon.svg" height="84" width="84">
+<img src="https://github.com/Zhang1933/WebSideChat/blob/main/assets/icon.svg" height="128" width="128">
 </sub>
 WebSideChat
 </h1>
@@ -27,7 +27,7 @@ WebSideChat，回答你网页上、视频中小小的疑问。
 
 ## 插件配置
 
-安装好后，点击插件图标，打开插件侧边栏，按照引导添加AI供应商配置即可，就像在配置 [cc-switch](https://github.com/farion1231/cc-switch) 或各种agent工具一样。
+安装好后，点击插件图标，打开插件侧边栏，按照引导添加AI供应商即可，就像在配置 [cc-switch](https://github.com/farion1231/cc-switch) 或各种agent工具一样。
 
 ## 开发
 

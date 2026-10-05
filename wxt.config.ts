@@ -6,10 +6,13 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'WebSideChat',
-    description: 'websidechat能帮你摘要网页内容、回答网页问题。',
+    description: '用你喜欢的AI与网页、视频对话。',
     // side_panel 与 sidePanel 权限由 entrypoints/sidepanel 自动生成，勿重复声明
-    permissions: ['storage', 'scripting', 'offscreen'],
-    host_permissions: ['<all_urls>'],
+    permissions: ['storage', 'scripting', 'offscreen', 'activeTab'],
+    // 商店化权限方案：安装时仅声明视频站窄域（字幕提取的固定域名，免运行时弹窗）；
+    // LLM 供应商域名在保存/拉模型时经 optional 按需申请（一次气泡，之后静默）
+    host_permissions: ['https://*.youtube.com/*', 'https://*.bilibili.com/*', 'https://*.hdslb.com/*'],
+    optional_host_permissions: ['<all_urls>'],
     action: { default_title: 'WebSideChat — 打开/关闭本页侧边栏' },
     // 注入式抽屉：把 sidepanel 应用（HTML/JS/CSS）暴露给网页 iframe 嵌入
     web_accessible_resources: [

@@ -15,6 +15,12 @@ import {
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
 import { loginCodexOAuth } from '@/lib/oauth';
+import {
+  getOriginPattern,
+  OAUTH_ORIGIN_PATTERNS,
+  requestHostPermission,
+  requestHostPermissions,
+} from '@/lib/permissions';
 import { cleanCodexToml, parseAndMergeTexts, syncDraftToTexts, type ProviderDraft } from '@/lib/importConfig';
 import { parseContextInput, parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
@@ -184,6 +190,12 @@ export function ProviderForm({
   async function handleCodexLogin() {
     setOauthBusy(true);
     setOauthMsg(null);
+    // 登录跳转与令牌请求都要访问 chatgpt.com / auth.openai.com——按钮手势内申请
+    if (!(await requestHostPermissions(OAUTH_ORIGIN_PATTERNS))) {
+      setOauthMsg('登录需要访问 chatgpt.com 的权限，请重试并在弹窗中允许');
+      setOauthBusy(false);
+      return;
+    }
     try {
       const result = await loginCodexOAuth();
       setValue('apiFormat', 'openai_responses');
@@ -246,6 +258,13 @@ export function ProviderForm({
     accountId?: string;
   }): Promise<string[] | null> {
     setFetchModelError(null);
+    // 域名权限：按钮点击（手势）内直接弹授权气泡；非手势路径（导入自动拉取）
+    // 申请失败 → 提示改点「获取模型列表」按钮（点击即手势）
+    const pattern = getOriginPattern(override?.baseUrl ?? watch('baseUrl') ?? '');
+    if (pattern && !(await requestHostPermission(pattern))) {
+      setFetchModelError('尚未授权访问该 API 域名——点击「获取模型列表」并在弹窗中允许');
+      return null;
+    }
     setFetchingModels(true);
     try {
       const list = await fetchModels({
@@ -286,11 +305,20 @@ export function ProviderForm({
           const n = parseContextInput(rawLimit);
           if (n != null) setValue('contextLimit', String(n));
         }
-        void handleSubmit((values) => {
+        void handleSubmit(async (values) => {
           if (!getValues('apiKey').trim()) {
             setError('apiKey', {
               type: 'manual',
               message: 'API Key 不能为空：粘贴配置文件（失焦自动填充），或手动填写',
+            });
+            return;
+          }
+          // 保存前确保域名权限（提交手势内申请，一次气泡之后静默）
+          const pattern = getOriginPattern(values.baseUrl);
+          if (pattern && !(await requestHostPermission(pattern))) {
+            setError('baseUrl', {
+              type: 'manual',
+              message: '未授予该域名访问权限，无法连接 API——重试保存并在弹窗中允许',
             });
             return;
           }

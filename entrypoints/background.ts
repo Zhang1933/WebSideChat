@@ -1,5 +1,6 @@
 import { browser } from '#imports';
 import { drawerOpenItem, drawerPinnedItem, type DrawerMessage } from '@/lib/drawerMessages';
+import { gestureTabUrlsItem } from '@/lib/gestureTabs';
 import { persistConversation } from '@/lib/storage';
 import type { TurnMessage } from '@/lib/turnMessages';
 
@@ -44,6 +45,13 @@ export default defineBackground(() => {
   browser.action.onClicked.addListener((tab) => {
     const tabId = tab.id;
     if (tabId == null) return;
+    // 手势发生时 tab.url 可见（activeTab 授予）→ 记录到 session，
+    // 供未经手势打开的原生侧边栏推算 origin 做「授权本站」
+    if (tab.url) {
+      void gestureTabUrlsItem.getValue().then((m) =>
+        gestureTabUrlsItem.setValue({ ...m, [String(tabId)]: tab.url! }),
+      );
+    }
     if (drawerTabs.has(tabId)) {
       void browser.tabs
         .sendMessage(tabId, { type: 'drawer:toggle' } satisfies DrawerMessage)
@@ -101,9 +109,14 @@ export default defineBackground(() => {
     });
   });
 
-  // 标签页关闭：清理本 tab 的抽屉状态与脚本注册
+  // 标签页关闭：清理本 tab 的抽屉状态、脚本注册与手势 URL 记录
   browser.tabs.onRemoved.addListener((tabId) => {
     drawerTabs.delete(tabId);
     void drawerOpenItem(tabId).removeValue();
+    void gestureTabUrlsItem.getValue().then((m) => {
+      const next = { ...m };
+      delete next[String(tabId)];
+      void gestureTabUrlsItem.setValue(next);
+    });
   });
 });

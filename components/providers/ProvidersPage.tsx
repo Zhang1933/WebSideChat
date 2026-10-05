@@ -1,4 +1,4 @@
-import { ChevronLeft, Plus } from 'lucide-react';
+import { ChevronLeft, Plus, ShieldAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { PROVIDER_PRESETS } from '@/config/presets';
+import { getOriginPattern, hasHostPermission, requestHostPermissions } from '@/lib/permissions';
 import {
   currentProviderIdItem,
   deleteProvider,
@@ -81,6 +82,29 @@ export function ProvidersPage({
   }, [providers, initialEditId, initialAdd]);
 
   const list = Object.values(providers).sort((a, b) => a.createdAt - b.createdAt);
+
+  // 老用户迁移：升级到按域授权后，已保存供应商的域名缺权限 → 横幅引导一键补授
+  const [missingOrigins, setMissingOrigins] = useState<string[]>([]);
+  useEffect(() => {
+    if (Object.keys(providers).length === 0) {
+      setMissingOrigins([]);
+      return;
+    }
+    void (async () => {
+      const patterns = [
+        ...new Set(
+          Object.values(providers)
+            .map((p) => getOriginPattern(p.baseUrl))
+            .filter((p): p is string => p != null),
+        ),
+      ];
+      const missing: string[] = [];
+      for (const pat of patterns) {
+        if (!(await hasHostPermission(pat))) missing.push(pat);
+      }
+      setMissingOrigins(missing);
+    })();
+  }, [providers]);
 
   function handleSave(
     values: {
@@ -156,6 +180,30 @@ export function ProvidersPage({
       </header>
 
       <div className="flex-1 overflow-y-auto p-3">
+        {view === 'list' && missingOrigins.length > 0 && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                {missingOrigins.length} 个供应商域名需要重新授权网络访问
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                升级为按域授权后，已有供应商需要补一次权限，否则对话请求无法发出
+              </p>
+              <Button
+                size="sm"
+                className="mt-2 h-7 bg-amber-600 hover:bg-amber-700"
+                onClick={() =>
+                  void requestHostPermissions(missingOrigins).then((ok) => {
+                    if (ok) setMissingOrigins([]);
+                  })
+                }
+              >
+                一键授权
+              </Button>
+            </div>
+          </div>
+        )}
         {view === 'list' && (
           <div className="flex flex-col gap-4">
             {list.length === 0 ? (

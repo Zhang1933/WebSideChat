@@ -1,4 +1,4 @@
-import { AlertCircle, Globe, Plus } from 'lucide-react';
+import { AlertCircle, Globe, Plus, ShieldQuestion } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExtractViewerDialog } from '@/components/ExtractViewerDialog';
 import { Header } from '@/components/Header';
@@ -7,6 +7,8 @@ import { UnifiedChat } from '@/components/chat/UnifiedChat';
 import { hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
 import { drawerPinnedItem, type DrawerMessage } from '@/lib/drawerMessages';
+import { gestureTabUrlsItem } from '@/lib/gestureTabs';
+import { ALL_URLS_PATTERN, getOriginPattern, requestHostPermission } from '@/lib/permissions';
 import { openProviderManager } from '@/lib/openOptions';
 import { summaryUserPrompt } from '@/lib/prompts';
 import {
@@ -37,13 +39,44 @@ export default function App() {
     return drawerPinnedItem.watch(setDrawerPinned);
   }, []);
 
-  const toggleDrawerPin = useCallback(() => {
+  /** pin 方案 A：开启固定抽屉需要全域注入权限（新标签页/任意网站自动展开）——
+   *  开关点击即用户手势，一次气泡换全局自动展开；拒绝则不开启 */
+  const toggleDrawerPin = useCallback(async () => {
+    if (!drawerPinned) {
+      const granted = await requestHostPermission(ALL_URLS_PATTERN);
+      if (!granted) {
+        setError('开启固定抽屉需要「所有网站」访问权限（用于在新标签页自动展开），请重试并在弹窗中允许');
+        return;
+      }
+    }
     void drawerPinnedItem.setValue(!drawerPinned);
   }, [drawerPinned]);
 
   const closeDrawer = useCallback(() => {
     window.parent.postMessage({ type: 'websidechat-drawer', action: 'close' }, '*');
   }, []);
+
+  // ---- 原生侧边栏授权兜底：未经手势打开（非工具栏图标入口）时 tab.url 不可见 ----
+  // 从 background 记录的手势 URL（session）推算 origin，供「授权本站」按钮申请。
+  // 仅当确知该页可授权（曾有手势且为 http/https）才显示横幅——
+  // chrome://extensions/ 等浏览器页面授权也无用，不提示
+  const [gestureUrl, setGestureUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (IN_DRAWER || tab.url || tab.id == null) {
+      setGestureUrl(null);
+      return;
+    }
+    void gestureTabUrlsItem.getValue().then((m) => setGestureUrl(m[String(tab.id)] ?? null));
+  }, [tab.id, tab.url]);
+  const gestureHost = (() => {
+    try {
+      return gestureUrl ? new URL(gestureUrl).hostname : null;
+    } catch {
+      return null;
+    }
+  })();
+  /** 横幅只在手势记录是 http/https 页（授权能解决）时出现 */
+  const showAuthBanner = gestureUrl != null && getOriginPattern(gestureUrl) != null;
 
   // ---- 配置（storage.watch 联动） ----
   const [providers, setProviders] = useState<Record<string, Provider>>({});
@@ -291,6 +324,31 @@ export default function App() {
           <button className="shrink-0 underline" onClick={() => setError(null)}>
             关闭
           </button>
+        </div>
+      )}
+
+      {/* 原生侧边栏未经手势打开且该页可授权：引导补权限；chrome:// 等页面不显示 */}
+      {!IN_DRAWER && tab.id != null && !tab.url && showAuthBanner && (
+        <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px]">
+          <ShieldQuestion className="mt-0.5 size-3 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="font-medium text-amber-800 dark:text-amber-300">需要授权读取当前页面</p>
+            <p className="mt-0.5 text-muted-foreground">
+              点一次上方工具栏的扩展图标即可；或为本站单独授权（之后永久生效）：
+            </p>
+            <button
+              className="mt-1.5 rounded-full bg-amber-600 px-3 py-1 text-white transition-colors hover:bg-amber-700"
+              onClick={() =>
+                void (async () => {
+                  // 授权成功后 permissions.onAdded 触发 useActiveTab 刷新，tab.url 即刻可见
+                  const pattern = getOriginPattern(gestureUrl ?? '');
+                  if (pattern) await requestHostPermission(pattern);
+                })()
+              }
+            >
+              授权本站（{gestureHost}）
+            </button>
+          </div>
         </div>
       )}
 

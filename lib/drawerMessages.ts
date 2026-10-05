@@ -35,8 +35,6 @@ export type DrawerMessage =
   | { type: 'drawer:get-state' }
   /** content script → background：记录本 tab 抽屉开关 */
   | { type: 'drawer:set-open'; open: boolean }
-  /** 抽屉内 iframe（扩展页）→ background：切换全局 pin */
-  | { type: 'drawer:set-pinned'; pinned: boolean }
   /** background → content script：工具栏图标点击切换抽屉 */
   | { type: 'drawer:toggle' }
   /** background → content script 的应答/推送 */

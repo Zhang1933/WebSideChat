@@ -73,8 +73,6 @@ export default defineBackground(() => {
     if (msg?.type === 'drawer:set-open') {
       const tabId = sender.tab?.id;
       if (tabId != null) void drawerOpenItem(tabId).setValue(msg.open);
-    } else if (msg?.type === 'drawer:set-pinned') {
-      void drawerPinnedItem.setValue(msg.pinned);
     } else if (
       msg?.type === 'turn:started' ||
       msg?.type === 'turn:done' ||

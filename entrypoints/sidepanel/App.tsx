@@ -6,7 +6,7 @@ import { PageBar } from '@/components/PageBar';
 import { UnifiedChat } from '@/components/chat/UnifiedChat';
 import { hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
-import type { DrawerMessage } from '@/lib/drawerMessages';
+import { drawerPinnedItem, type DrawerMessage } from '@/lib/drawerMessages';
 import { openProviderManager } from '@/lib/openOptions';
 import { summaryUserPrompt } from '@/lib/prompts';
 import {
@@ -33,21 +33,13 @@ export default function App() {
   const [drawerPinned, setDrawerPinned] = useState(false);
   useEffect(() => {
     if (!IN_DRAWER) return;
-    void browser.runtime
-      .sendMessage({ type: 'drawer:get-state' } satisfies DrawerMessage)
-      .then((state) => {
-        const s = state as { pinned?: boolean } | undefined;
-        setDrawerPinned(s?.pinned ?? false);
-      })
-      .catch(() => {});
+    // 直接 watch storage：任一页面的抽屉切换 pin，所有已打开的抽屉实时同步
+    void drawerPinnedItem.getValue().then(setDrawerPinned);
+    return drawerPinnedItem.watch(setDrawerPinned);
   }, []);
 
   const toggleDrawerPin = useCallback(() => {
-    const next = !drawerPinned;
-    setDrawerPinned(next);
-    void browser.runtime
-      .sendMessage({ type: 'drawer:set-pinned', pinned: next } satisfies DrawerMessage)
-      .catch(() => {});
+    void drawerPinnedItem.setValue(!drawerPinned);
   }, [drawerPinned]);
 
   const closeDrawer = useCallback(() => {

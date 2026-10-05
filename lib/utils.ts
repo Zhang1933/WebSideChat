@@ -7,6 +7,33 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * 复制文本到剪贴板：优先 navigator.clipboard（原生面板 / 独立页正常），
+ * 抽屉 iframe 可能被宿主页的 Permissions-Policy 拦截（跨域 iframe 未授予
+ * clipboard-write）→ 退化为 execCommand('copy')（需用户手势，点击场景天然满足）。
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    /* 权限策略拦截 → 走兜底 */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 /** 上下文上限的自动默认值（token；模型名无长度后缀时） */
 export const AUTO_CONTEXT_LIMIT_TOKENS = 1_000_000;
 

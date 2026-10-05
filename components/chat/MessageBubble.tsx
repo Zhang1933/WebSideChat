@@ -1,7 +1,7 @@
 import { Check, Copy, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { Markdown } from '@/components/Markdown';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { expandTimestampLinks } from '@/lib/video/pages';
 import type { ChatMessage } from '@/types';
 
@@ -27,9 +27,11 @@ export function MessageBubble({
 
   async function copy() {
     // 视频会话：复制时把 #t 占位展开为完整链接（存储为占位省 token，复制给别处要能用）
-    await navigator.clipboard.writeText(expandTimestampLinks(message.content, videoUrl));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    const ok = await copyToClipboard(expandTimestampLinks(message.content, videoUrl));
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   }
 
   const isUser = message.role === 'user';

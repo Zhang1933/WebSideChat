@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { copyToClipboard } from '@/lib/utils';
 import type { Conversation } from '@/types';
 
 /** 调试模式：查看实际送入模型的提取正文（截断后）与元信息 */
@@ -25,9 +26,11 @@ export function ExtractViewerDialog({
 
   async function copy() {
     if (!conversation) return;
-    await navigator.clipboard.writeText(conversation.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    const ok = await copyToClipboard(conversation.content);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   }
 
   function download() {

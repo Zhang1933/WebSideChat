@@ -129,6 +129,8 @@ export default defineContentScript({
       if (iframe) return;
       iframe = document.createElement('iframe');
       iframe.src = browser.runtime.getURL('/sidepanel.html');
+      // 跨域 iframe 需显式授予剪贴板写权限，否则复制按钮被宿主页 Permissions-Policy 拦截
+      iframe.allow = 'clipboard-write';
       drawer.appendChild(iframe);
     }
 

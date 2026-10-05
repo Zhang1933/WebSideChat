@@ -18,7 +18,8 @@ export const anthropicAdapter: ProtocolAdapter = {
         model: stripContextSuffix(provider.model),
         system: req.system,
         messages: req.messages,
-        max_tokens: req.maxTokens ?? 4096,
+        // 摘要输出较长（视频摘要含大量时间戳链接），4096 会中途截断
+        max_tokens: req.maxTokens ?? 16384,
         stream: true,
         ...(req.temperature != null ? { temperature: req.temperature } : {}),
       },

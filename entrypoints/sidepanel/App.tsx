@@ -185,7 +185,7 @@ export default function App() {
       setExtracting(true);
       setError(null);
       try {
-        const extract = await extractCurrentPage(tab.id, contentBudgetChars(currentProvider));
+        const extract = await extractCurrentPage(tab.id, contentBudgetChars(currentProvider), tab.url);
         const conv = conversationFromExtract({ pageKey: pageKeyOf(tab.url), url: tab.url, extract });
         setConversation(conv);
         await persistConversation(conv);

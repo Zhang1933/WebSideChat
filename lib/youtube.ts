@@ -104,37 +104,6 @@ export function extractPlayerResponse(html: string): Record<string, unknown> | n
   return null;
 }
 
-/**
- * 从字幕轨道列表选择，优先级：
- * ① preferLangs 命中的语言（按序，如 zh）——存在中文轨道则优先
- * ② defaultIndex 指向的默认轨道（多音轨/自动配音视频的**原声语言**标记，
- *    来自 audioTracks[].defaultCaptionTrackIndex，避免英文视频选到配音字幕）
- * ③ 手动上传（非 asr）的第一条
- * ④ 第一条
- */
-export function pickCaptionTrack(
-  tracks: CaptionTrack[],
-  opts: { defaultIndex?: number; preferLangs?: string[] } = {},
-): CaptionTrack | null {
-  if (tracks.length === 0) return null;
-  const prefer = (opts.preferLangs ?? []).map((l) => l.toLowerCase());
-
-  for (const lang of prefer) {
-    const hits = tracks.filter((t) => t.languageCode?.toLowerCase().startsWith(lang));
-    if (hits.length > 0) {
-      // 同一语言内手动上传（非 asr）优先
-      return hits.find((t) => !t.kind) ?? hits[0]!;
-    }
-  }
-
-  const defIdx = opts.defaultIndex;
-  if (defIdx != null && defIdx >= 0 && defIdx < tracks.length) {
-    return tracks[defIdx]!;
-  }
-
-  return tracks.find((t) => !t.kind) ?? tracks[0] ?? null;
-}
-
 /** 秒 → [HH:MM:SS] 时间戳（含小时，超长视频不歧义） */
 function formatTimestamp(totalSec: number): string {
   const h = Math.floor(totalSec / 3600);

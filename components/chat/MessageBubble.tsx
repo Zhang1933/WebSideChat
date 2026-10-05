@@ -2,6 +2,7 @@ import { Check, Copy, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { Markdown } from '@/components/Markdown';
 import { cn } from '@/lib/utils';
+import { expandTimestampLinks } from '@/lib/video/pages';
 import type { ChatMessage } from '@/types';
 
 /**
@@ -13,19 +14,20 @@ export function MessageBubble({
   message,
   muted,
   onEdit,
-  isVideoPage = false,
+  videoUrl = null,
 }: {
   message: ChatMessage;
   muted?: boolean;
   /** 传入时显示编辑按钮（点击回调由父组件处理） */
   onEdit?: () => void;
-  /** 当前是否在视频页（透传给 Markdown 做时间戳链接 seek） */
-  isVideoPage?: boolean;
+  /** 当前会话的视频页 URL（透传给 Markdown 做占位展开与 seek） */
+  videoUrl?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(message.content);
+    // 视频会话：复制时把 #t 占位展开为完整链接（存储为占位省 token，复制给别处要能用）
+    await navigator.clipboard.writeText(expandTimestampLinks(message.content, videoUrl));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -45,7 +47,7 @@ export function MessageBubble({
             muted ? 'border border-dashed text-[13px] text-muted-foreground' : 'border',
           )}
         >
-          <Markdown text={message.content} isVideoPage={isVideoPage} />
+          <Markdown text={message.content} videoUrl={videoUrl} />
         </div>
       )}
 

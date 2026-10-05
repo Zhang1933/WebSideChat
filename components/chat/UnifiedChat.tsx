@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { CONTEXT_COMPRESSED_MARKER, visibleStartIndex } from '@/lib/conversation';
+import { isVideoPageUrl } from '@/lib/video/pages';
 import type { Conversation } from '@/types';
 import { MessageBubble } from './MessageBubble';
 
@@ -14,7 +15,7 @@ import { MessageBubble } from './MessageBubble';
  */
 export function UnifiedChat({
   conversation,
-  isVideo,
+  videoUrl,
   extracting,
   streaming,
   streamText,
@@ -25,8 +26,8 @@ export function UnifiedChat({
 }: {
   /** 当前页面会话；null = 尚未提取（空会话） */
   conversation: Conversation | null;
-  /** YouTube 观看页：以字幕为上下文，快捷气泡文案切换为"视频" */
-  isVideo: boolean;
+  /** 视频页 URL（YouTube/B 站）：占位时间戳展开、seek 与快捷气泡文案 */
+  videoUrl?: string | null;
   /** 正文/字幕提取中 */
   extracting: boolean;
   streaming: boolean;
@@ -46,6 +47,7 @@ export function UnifiedChat({
   const stickToBottomRef = useRef(true);
   /** 编辑中的消息（visibleMessages 下标）：发送时从该条截断重新提问（Gemini 交互） */
   const [editingFrom, setEditingFrom] = useState<number | null>(null);
+  const isVideo = isVideoPageUrl(videoUrl);
 
   const visibleMessages = conversation
     ? conversation.messages.slice(visibleStartIndex(conversation))
@@ -138,7 +140,7 @@ export function UnifiedChat({
               <MessageBubble
                 message={m}
                 muted={isDigest}
-                isVideoPage={isVideo}
+                videoUrl={videoUrl}
                 onEdit={
                   i === lastUserIndex && !streaming
                     ? () => startEdit(i, m.content)
@@ -151,7 +153,7 @@ export function UnifiedChat({
 
         {streaming && (
           <>
-            <MessageBubble message={{ role: 'assistant', content: streamText || '…' }} isVideoPage={isVideo} />
+            <MessageBubble message={{ role: 'assistant', content: streamText || '…' }} videoUrl={videoUrl} />
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
             </div>

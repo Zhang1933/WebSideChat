@@ -1,13 +1,10 @@
 import type { AppSettings, Conversation } from '@/types';
-import { extractVideoId, isYouTubeWatchUrl } from '@/lib/youtube';
+import { videoSiteOf, type VideoSite } from '@/lib/video/pages';
+import { videoSystemPrompt } from '@/lib/video/prompts';
 
 /** 内置系统提示词（网页场景的角色设定；语言指令与正文在其后拼接） */
 export const DEFAULT_WEB_SYSTEM_PROMPT =
   '你是网页摘要助手。用户会提供网页正文，请严格基于所提供内容回答问题，不要编造之外的信息。\n内容为 Markdown，引用数据时以其结构为准。';
-
-/** 内置系统提示词（视频场景，字幕带 [时:分:秒] 时间戳） */
-export const DEFAULT_VIDEO_SYSTEM_PROMPT =
-  '你是视频摘要助手。用户会提供视频字幕（每行带 [时:分:秒] 时间戳）与一个时间戳链接模板，请严格基于字幕内容回答问题，不要编造之外的信息。\n引用内容时输出可点击的时间戳链接：取模板中的完整 URL，把其中的 {秒数} 字面量替换为实际秒数。示例：若模板为 https://www.youtube.com/watch?v=abc&t={秒数}s，字幕 [05:30] 对应 330 秒，则输出 [`05:30`](https://www.youtube.com/watch?v=abc&t=330s)。';
 
 /** 兼容旧引用 */
 export const DEFAULT_SYSTEM_PROMPT = DEFAULT_WEB_SYSTEM_PROMPT;
@@ -35,9 +32,9 @@ const LANG_INSTRUCTION: Record<AppSettings['summaryLanguage'], string> = {
   auto: '请使用与网页正文相同的语言回复。',
 };
 
-/** 系统提示词正文之前的角色设定（内置，不允许用户自定义） */
-export function systemRole(_settings: AppSettings, isVideo = false): string {
-  return isVideo ? DEFAULT_VIDEO_SYSTEM_PROMPT : DEFAULT_WEB_SYSTEM_PROMPT;
+/** 系统提示词正文之前的角色设定（内置，不允许用户自定义；视频按站点取专属提示词） */
+export function systemRole(_settings: AppSettings, site: VideoSite | null = null): string {
+  return site ? videoSystemPrompt(site) : DEFAULT_WEB_SYSTEM_PROMPT;
 }
 
 /** 摘要轮的用户指令（自定义优先，其次按语言与场景取内置） */
@@ -61,28 +58,18 @@ export function isDefaultSummaryPrompt(text: string): boolean {
 
 /** system 提示：网页正文 + 元数据作为常驻上下文（摘要与追问共享） */
 export function buildSystemPrompt(conversation: Conversation, settings: AppSettings): string {
-  const isVideo = conversation.url ? isYouTubeWatchUrl(conversation.url) : false;
-
-  // 视频：提取 videoId 并给出可直接替换的时间戳链接模板，模型不需要自己解析 URL
-  let linkTemplate = '';
-  if (isVideo) {
-    const videoId = extractVideoId(conversation.url ?? '');
-    if (videoId) {
-      linkTemplate = `时间戳链接模板: https://www.youtube.com/watch?v=${videoId}&t={秒数}s（把 {秒数} 替换为实际秒数，如 330 表示 05:30）`;
-    }
-  }
+  const site = videoSiteOf(conversation.url);
 
   const meta = [
     `URL: ${conversation.url}`,
     `标题: ${conversation.title}`,
-    linkTemplate,
     conversation.truncated ? '（正文过长，已截断）' : '',
   ]
     .filter(Boolean)
     .join('\n');
 
   return [
-    systemRole(settings, isVideo),
+    systemRole(settings, site),
     LANG_INSTRUCTION[settings.summaryLanguage],
     '',
     '<page>',

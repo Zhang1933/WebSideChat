@@ -19,7 +19,7 @@ import {
 import { useActiveTab } from '@/lib/tabs';
 import { ensureOffscreenReady, type TurnMessage } from '@/lib/turnMessages';
 import { contentBudgetChars, pageKeyOf } from '@/lib/utils';
-import { isYouTubeWatchUrl } from '@/lib/youtube';
+import { isVideoPageUrl } from '@/lib/video/pages';
 import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation, type Provider } from '@/types';
 
 /** 抽屉模式：应用运行在注入 iframe 中（window.top ≠ window.self） */
@@ -192,7 +192,7 @@ export default function App() {
         setExtracting(false);
         await runTurn(
           firstUserContent ? 'chat' : 'summary',
-          firstUserContent ?? summaryUserPrompt(settings, !!tab.url && isYouTubeWatchUrl(tab.url)),
+          firstUserContent ?? summaryUserPrompt(settings, isVideoPageUrl(tab.url)),
           conv,
         );
       } catch (err) {
@@ -221,10 +221,10 @@ export default function App() {
     const base = hasSummary(conversation) ? { ...conversation, messages: [] } : conversation;
     void runTurn(
       'summary',
-      summaryUserPrompt(settings, !!tab.url && isYouTubeWatchUrl(tab.url)),
+      summaryUserPrompt(settings, isVideoPageUrl(tab.url)),
       base,
     );
-  }, [conversation, settings, runTurn, extractAndSummarize]);
+  }, [conversation, settings, tab.url, runTurn, extractAndSummarize]);
 
   const sendQuestion = useCallback(
     (text: string, editFrom?: number) => {
@@ -310,7 +310,7 @@ export default function App() {
         ) : (
           <UnifiedChat
             conversation={conversation}
-            isVideo={tab.url ? isYouTubeWatchUrl(tab.url) : false}
+            videoUrl={tab.url}
             extracting={extracting}
             streaming={conversation != null && conversation.pageKey in streamTexts}
             streamText={conversation ? (streamTexts[conversation.pageKey] ?? '') : ''}

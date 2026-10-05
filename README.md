@@ -1,6 +1,11 @@
-# WebSideChat，用你喜欢的AI与网页对话。
+<h1 align="center">
+<sub>
+<img src="https://github.com/Zhang1933/WebSideChat/blob/main/assets/icon.svg" height="38" width="38">
+</sub>
+WebSideChat
+</h1>
 
-
+<p align="center">用你喜欢的AI与网页对话。</p>
 
 WebSideChat，浏览器扩展，一键提取网页、视频内容，利用AI与网页对话。
 
@@ -14,7 +19,7 @@ WebSideChat，回答你网页上、视频中小小的疑问。
 - **YouTube，bilibili 视频对话**：
 - **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
 - **提示词自定义**：可编辑摘要指令，支持恢复内置默认
-- **多标签页并行**：每个标签页是独立会话与独立流——可同时在多个标签页生成摘要/追问，互不打断，关闭后重开即见。
+- **多标签页并行**：每个标签页是独立会话与独立流——可同时在多个标签页对话，互不打断。
 
 ## 手动安装
 
@@ -31,9 +36,6 @@ npm run compile    # tsc 类型检查
 npm run build      # 产物 .output/chrome-mv3/
 npm run zip        # 打包 .output/*.zip（可上架/分发）
 ```
-
-手动加载：Chrome 打开 `chrome://extensions` → 开发者模式 → "加载已解压的扩展程序" → 选择 `.output/chrome-mv3`。Edge 同理（`edge://extensions`）。
-
 
 ## 已知限制（v2 规划）
 

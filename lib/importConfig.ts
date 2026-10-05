@@ -16,6 +16,7 @@ export type ConfigSource =
   | 'claude-settings'
   | 'codex-auth'
   | 'codex-toml'
+  | 'opencode-json'
   | 'generic-fields'
   | 'unknown';
 
@@ -25,9 +26,10 @@ export interface ParsedProviderConfig extends ProviderDraft {
 }
 
 export const CONFIG_SOURCE_LABELS: Record<ConfigSource, string> = {
-  'claude-settings': 'Claude 配置（settings.json env / cc-switch Claude 格式）',
-  'codex-auth': 'OpenAI 配置（auth.json / cc-switch Codex 格式）',
+  'claude-settings': 'Claude Code 配置（settings.json env / cc-switch Claude 格式）',
+  'codex-auth': 'Codex 配置（auth.json / cc-switch Codex 格式）',
   'codex-toml': 'Codex config.toml（模型与自定义端点）',
+  'opencode-json': 'OpenCode 配置（opencode.json 的 provider 表）',
   'generic-fields': '通用字段 JSON（baseUrl/apiKey/model）',
   unknown: '未识别',
 };
@@ -208,7 +210,11 @@ function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {
     };
   }
 
-  // ③ 通用字段
+  // ③ OpenCode（~/.config/opencode/opencode.json 的 provider 表，或单个 provider 片段）
+  const opencode = parseOpenCodeConfig(obj);
+  if (opencode) return opencode;
+
+  // ④ 通用字段
   const generic = {
     baseUrl: asString(obj.baseUrl) ?? asString(obj.baseURL),
     apiKey: asString(obj.apiKey) ?? asString(obj.api_key),
@@ -226,11 +232,13 @@ function parseJsonObject(obj: Record<string, unknown>): ParsedProviderConfig {
 }
 
 /** Codex config.toml：顶层 model + model_provider 指向（或第一个）model_providers 条目的 base_url；
- *  wire_api = "responses" 的端点映射 Responses 协议 */
+ *  wire_api = "responses" 的端点映射 Responses 协议；
+ *  experimental_bearer_token 作为内嵌 API Key 直接提取（无需 auth.json） */
 function parseCodexToml(toml: Record<string, unknown>): ParsedProviderConfig | null {
   const model = asString(toml.model);
   let baseUrl: string | undefined;
   let wireApi: string | undefined;
+  let apiKey: string | undefined;
   const providers = asRecord(toml.model_providers);
   if (providers) {
     const activeKey = asString(toml.model_provider);
@@ -239,6 +247,8 @@ function parseCodexToml(toml: Record<string, unknown>): ParsedProviderConfig | n
       asRecord(Object.values(providers)[0]);
     baseUrl = asString(entry?.base_url);
     wireApi = asString(entry?.wire_api);
+    // experimental_bearer_token：provider 内嵌的 API Key，无需 auth.json
+    apiKey = asString(entry?.experimental_bearer_token);
   }
   if (!model && !baseUrl) return null;
   return {
@@ -247,5 +257,59 @@ function parseCodexToml(toml: Record<string, unknown>): ParsedProviderConfig | n
     apiFormat: providers ? (wireApi === 'responses' ? 'openai_responses' : 'openai_chat') : undefined,
     model,
     baseUrl,
+    apiKey,
   };
+}
+
+/**
+ * OpenCode（~/.config/opencode/opencode.json）：
+ *   { "model": "kimi/kimi-k3",
+ *     "provider": { "kimi": { "npm": "@ai-sdk/openai-compatible",
+ *       "options": { "baseURL": "…", "apiKey": "…" },
+ *       "models": { "kimi-k3": { "limit": { "context": 262144 } } } } } }
+ * 也接受单个 provider 片段（含 npm + options）。npm 决定协议：
+ * anthropic → anthropic；@ai-sdk/openai → responses；其余 → chat。
+ */
+function parseOpenCodeConfig(obj: Record<string, unknown>): ParsedProviderConfig | null {
+  let entry: Record<string, unknown> | null = null;
+  let modelHint: string | undefined;
+
+  const providerMap = asRecord(obj.provider);
+  if (providerMap) {
+    const topModel = asString(obj.model); // 形如 "kimi/kimi-k3"
+    const ids = Object.keys(providerMap);
+    let selectedId = topModel?.includes('/') ? topModel.split('/')[0]! : undefined;
+    if (!selectedId || !asRecord(providerMap[selectedId])) selectedId = ids[0];
+    const chosen = selectedId ? asRecord(providerMap[selectedId]) : null;
+    if (!chosen) return null;
+    entry = chosen;
+    if (topModel && selectedId && topModel.startsWith(`${selectedId}/`)) {
+      modelHint = topModel.slice(selectedId.length + 1);
+    }
+  } else if (obj.npm && asRecord(obj.options)) {
+    entry = obj; // 单个 provider 片段
+  }
+  if (!entry) return null;
+
+  const npm = asString(entry.npm) ?? '';
+  const options = asRecord(entry.options);
+  const baseUrl = asString(options?.baseURL);
+  const apiKey = asString(options?.apiKey);
+  const models = asRecord(entry.models);
+  const model = modelHint ?? (models ? (Object.keys(models)[0] ?? undefined) : undefined);
+  if (!baseUrl && !apiKey && !model) return null;
+
+  let contextLimit: number | undefined;
+  if (model && models) {
+    const limit = asRecord(asRecord(models[model])?.limit);
+    const ctx = Number(limit?.context);
+    if (Number.isFinite(ctx) && ctx > 0) contextLimit = Math.round(ctx);
+  }
+
+  const apiFormat: ApiFormat = npm.includes('anthropic')
+    ? 'anthropic'
+    : npm === '@ai-sdk/openai'
+      ? 'openai_responses'
+      : 'openai_chat';
+  return { source: 'opencode-json', apiFormat, baseUrl, apiKey, model, contextLimit };
 }

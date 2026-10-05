@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FileUp, WandSparkles } from 'lucide-react';
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -11,8 +11,9 @@ import type { ProviderPreset } from '@/types';
 type HintKey = NonNullable<ProviderPreset['importHint']>;
 
 const HINT_TITLE: Record<HintKey, string> = {
-  'claude-settings': '从 Claude settings.json 导入',
-  codex: '从 OpenAI auth.json + config.toml 导入',
+  'claude-settings': '从 Claude Code settings.json 导入',
+  codex: '从 Codex auth.json + config.toml 导入',
+  'opencode-json': '从 OpenCode opencode.json 导入',
 };
 
 interface Slot {
@@ -20,7 +21,34 @@ interface Slot {
   label: string;
   placeholder: string;
   accept: string;
+  /** 预填模板（新增时可编辑的初值，替代占位符） */
+  prefill?: string;
 }
+
+/** 各类型（codex 之外）单框的可编辑预填模板 */
+const PREFILL: Record<Exclude<HintKey, 'codex'>, string> = {
+  'claude-settings': [
+    '{',
+    '  "env": {',
+    '    "ANTHROPIC_BASE_URL": "",',
+    '    "ANTHROPIC_AUTH_TOKEN": "",',
+    '    "ANTHROPIC_MODEL": ""',
+    '  }',
+    '}',
+  ].join('\n'),
+  'opencode-json': [
+    '{',
+    '  "model": "custom/model-id",',
+    '  "provider": {',
+    '    "custom": {',
+    '      "npm": "@ai-sdk/openai-compatible",',
+    '      "options": { "baseURL": "", "apiKey": "" },',
+    '      "models": { "model-id": {} }',
+    '    }',
+    '  }',
+    '}',
+  ].join('\n'),
+};
 
 /** OpenAI 类型双框（auth.json + config.toml），其余类型单框 */
 function slotsFor(hint: HintKey | undefined): Slot[] {
@@ -31,18 +59,32 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
         label: 'auth.json',
         placeholder: '{ "OPENAI_API_KEY": "sk-…" }',
         accept: '.json,application/json',
+        prefill: '{\n  "OPENAI_API_KEY": ""\n}',
       },
       {
         key: 'toml',
         label: 'config.toml',
         placeholder: 'model = "gpt-5.5"\nmodel_provider = "custom"\n\n[model_providers.custom]\nbase_url = "https://…"',
         accept: '.toml,text/plain',
+        prefill: [
+          'model_provider = "custom"',
+          'model = "gpt-5.6-sol"',
+          '',
+          '[model_providers.custom]',
+          'name = "custom"',
+          'wire_api = "responses"',
+          'requires_openai_auth = true',
+          'base_url = ""',
+          'experimental_bearer_token = ""',
+        ].join('\n'),
       },
     ];
   }
   const placeholder: Record<Exclude<HintKey, 'codex'>, string> = {
     'claude-settings':
       '{\n  "env": {\n    "ANTHROPIC_BASE_URL": "https://…",\n    "ANTHROPIC_AUTH_TOKEN": "sk-…",\n    "ANTHROPIC_MODEL": "claude-sonnet-5"\n  }\n}',
+    'opencode-json':
+      '{\n  "model": "kimi/kimi-k3",\n  "provider": {\n    "kimi": {\n      "npm": "@ai-sdk/openai-compatible",\n      "options": { "baseURL": "https://…", "apiKey": "sk-…" },\n      "models": { "kimi-k3": { "limit": { "context": 262144 } } }\n    }\n  }\n}',
   };
   const key: Exclude<HintKey, 'codex'> = hint ?? 'claude-settings';
   return [
@@ -51,6 +93,7 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
       label: '',
       placeholder: placeholder[key],
       accept: '.json,application/json',
+      prefill: PREFILL[key],
     },
   ];
 }
@@ -76,6 +119,17 @@ export function ConfigImport({
   const [open, setOpen] = useState(true);
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const slots = slotsFor(hint);
+
+  // 预填模板：新增（各框均空）时填入可编辑的初值，用户已有内容则不覆盖
+  useEffect(() => {
+    const hasAny = slots.some((s) => (texts[s.key] ?? '').trim());
+    if (hasAny) return;
+    const prefillMap = Object.fromEntries(
+      slots.filter((s) => s.prefill).map((s) => [s.key, s.prefill!]),
+    );
+    if (Object.keys(prefillMap).length > 0) onTextsChange(prefillMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hint]);
 
   /** 解析所有非空框并合并应用；部分失败时仍应用成功部分并提示失败原因 */
   function applyMerged() {

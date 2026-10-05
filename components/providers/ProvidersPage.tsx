@@ -174,7 +174,7 @@ export function ProvidersPage({
                 <div>
                   <p className="text-sm font-medium">新增供应商</p>
                   <p className="text-[11px] text-muted-foreground">
-                    还没有供应商——选择 Claude / OpenAI，或粘贴配置文件导入
+                    还没有供应商——选择 Claude Code / Codex / OpenCode，或粘贴配置文件导入
                   </p>
                 </div>
               </button>

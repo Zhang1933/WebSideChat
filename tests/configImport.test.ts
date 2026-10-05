@@ -121,6 +121,64 @@ describe('parseProviderConfig', () => {
     });
   });
 
+  it('解析 OpenCode opencode.json（顶层 model 选 provider 与模型，context 进上下文上限）', () => {
+    const r = parseProviderConfig(
+      JSON.stringify({
+        model: 'kimi/kimi-k3',
+        provider: {
+          kimi: {
+            npm: '@ai-sdk/openai-compatible',
+            options: { baseURL: 'https://api.moonshot.cn/v1', apiKey: 'sk-t' },
+            models: {
+              'kimi-k3': { name: 'Kimi K3', limit: { context: 262144, output: 131072 } },
+            },
+          },
+          other: { npm: '@ai-sdk/openai-compatible', options: { baseURL: 'https://o' } },
+        },
+      }),
+    );
+    expect(r).toEqual({
+      source: 'opencode-json',
+      apiFormat: 'openai_chat',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      apiKey: 'sk-t',
+      model: 'kimi-k3',
+      contextLimit: 262_144,
+    });
+  });
+
+  it('OpenCode：无顶层 model 取第一个 provider 的第一个模型；anthropic npm 映射协议', () => {
+    const r = parseProviderConfig(
+      JSON.stringify({
+        provider: {
+          myclaude: {
+            npm: '@ai-sdk/anthropic',
+            options: { baseURL: 'https://a', apiKey: 'k' },
+            models: { 'claude-x': {} },
+          },
+        },
+      }),
+    );
+    expect(r?.source).toBe('opencode-json');
+    expect(r?.apiFormat).toBe('anthropic');
+    expect(r?.model).toBe('claude-x');
+    expect(r?.contextLimit).toBeUndefined();
+  });
+
+  it('OpenCode：@ai-sdk/openai 映射 responses；单 provider 片段也可识别', () => {
+    const frag = parseProviderConfig(
+      JSON.stringify({
+        npm: '@ai-sdk/openai',
+        options: { baseURL: 'https://x', apiKey: 'k' },
+        models: { 'gpt-5.5': { limit: { context: 400000 } } },
+      }),
+    );
+    expect(frag?.source).toBe('opencode-json');
+    expect(frag?.apiFormat).toBe('openai_responses');
+    expect(frag?.model).toBe('gpt-5.5');
+    expect(frag?.contextLimit).toBe(400_000);
+  });
+
   it('解析 Codex config.toml：model_provider 指向的 base_url', () => {
     const r = parseProviderConfig(
       'model = "gpt-5.1"\nmodel_provider = "custom"\n\n[model_providers.custom]\nname = "MyProxy"\nbase_url = "https://proxy.example.com/v1"\nwire_api = "chat"\n',
@@ -150,6 +208,33 @@ describe('parseProviderConfig', () => {
     expect(r.model).toBe('gpt-5.5');
     expect(r.baseUrl).toBe('https://node.example.com/api/v1');
     expect(r.apiFormat).toBe('openai_responses');
+  });
+
+  it('Codex config.toml 的 experimental_bearer_token 作为内嵌 API Key 提取', () => {
+    const r = parseProviderConfig(
+      [
+        'model_provider = "ZAI"',
+        'model = "glm-5.3"',
+        'model_reasoning_effort = "max"',
+        '',
+        '[model_providers.ZAI]',
+        'name = "ZAI"',
+        'base_url = "https://open.bigmodel.cn/api/v1"',
+        'experimental_bearer_token = "test-bearer-token-fake"',
+        'wire_api = "responses"',
+        'requires_openai_auth = false',
+        '',
+        '[tui]',
+        'screen_reader_detection_done = true',
+      ].join('\n'),
+    );
+    expect(r).toEqual({
+      source: 'codex-toml',
+      apiFormat: 'openai_responses',
+      model: 'glm-5.3',
+      baseUrl: 'https://open.bigmodel.cn/api/v1',
+      apiKey: 'test-bearer-token-fake',
+    });
   });
 
   it('config.toml 无 model_provider 时取第一个 provider 的 base_url', () => {

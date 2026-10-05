@@ -7,7 +7,7 @@ import type { ProviderPreset } from '@/types';
 export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
   {
     id: 'claude',
-    name: 'Claude',
+    name: 'Claude Code',
     baseUrl: 'https://api.anthropic.com',
     apiFormat: 'anthropic',
     defaultModel: 'claude-sonnet-5',
@@ -19,7 +19,7 @@ export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'openai',
-    name: 'OpenAI',
+    name: 'Codex',
     baseUrl: 'https://api.openai.com/v1',
     apiFormat: 'openai_chat',
     defaultModel: 'gpt-5.5',
@@ -28,6 +28,16 @@ export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
     icon: 'openai',
     iconColor: '#10A37F',
     importHint: 'codex',
+  },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    baseUrl: '',
+    apiFormat: 'openai_chat',
+    defaultModel: '',
+    websiteUrl: 'https://opencode.ai',
+    icon: 'opencode',
+    importHint: 'opencode-json',
   },
 ];
 

@@ -338,16 +338,28 @@ export function ProviderForm({
 
       <div className="flex flex-col gap-1.5">
         <Label>接口协议</Label>
-        <Select value={apiFormat} onValueChange={(v) => setValue('apiFormat', v as FormValues['apiFormat'])}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="openai_chat">OpenAI 兼容（chat/completions）</SelectItem>
-            <SelectItem value="anthropic">Anthropic（v1/messages）</SelectItem>
-            <SelectItem value="openai_responses">OpenAI Responses（v1/responses）</SelectItem>
-          </SelectContent>
-        </Select>
+        {preset.importHint === 'claude-settings' ? (
+          // Claude Code 固定走 Anthropic Messages 协议，不可更改
+          <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+            Anthropic（v1/messages）
+          </div>
+        ) : preset.importHint === 'codex' ? (
+          // Codex 固定走 OpenAI Responses 协议，不可更改
+          <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+            OpenAI Responses（v1/responses）
+          </div>
+        ) : (
+          <Select value={apiFormat} onValueChange={(v) => setValue('apiFormat', v as FormValues['apiFormat'])}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai_chat">OpenAI 兼容（chat/completions）</SelectItem>
+              <SelectItem value="anthropic">Anthropic（v1/messages）</SelectItem>
+              <SelectItem value="openai_responses">OpenAI Responses（v1/responses）</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">

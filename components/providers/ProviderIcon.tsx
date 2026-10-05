@@ -3,6 +3,7 @@ import deepseek from '@/assets/brand/deepseek.svg';
 import kimi from '@/assets/brand/kimi.svg';
 import ollama from '@/assets/brand/ollama.svg';
 import openai from '@/assets/brand/openai.svg';
+import opencode from '@/assets/brand/opencode.svg';
 import qwen from '@/assets/brand/qwen.svg';
 import zhipu from '@/assets/brand/zhipu.svg';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,7 @@ const BRAND_ICONS: Record<string, string> = {
   anthropic,
   claude: anthropic,
   openai,
+  opencode,
   deepseek,
   kimi,
   qwen,

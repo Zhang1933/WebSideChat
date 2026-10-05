@@ -6,6 +6,7 @@ import { ProviderIcon } from './ProviderIcon';
 const TYPE_SUBTITLE: Record<string, string> = {
   'claude-settings': 'settings.json 配置',
   codex: 'auth.json + config.toml 配置',
+  'opencode-json': 'opencode.json 配置',
 };
 
 /** 新增供应商第一步：选择配置类型（对齐 cc-switch），按类型提供配置文件导入 */

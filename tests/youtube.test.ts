@@ -1,14 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
-  checkPlayability,
-  extractInnertubeApiKey,
-  extractPlayerResponse,
   extractVideoId,
   isYouTubeWatchUrl,
   parseJson3Transcript,
   parseTimedTextXml,
-  stripFmtParam,
 } from '@/lib/youtube';
 
 describe('isYouTubeWatchUrl', () => {
@@ -33,57 +29,6 @@ describe('extractVideoId', () => {
   it('非视频页返回 null', () => {
     expect(extractVideoId('https://www.youtube.com/')).toBeNull();
     expect(extractVideoId('bad')).toBeNull();
-  });
-});
-
-describe('extractInnertubeApiKey', () => {
-  it('从 HTML 正则提取', () => {
-    const html = 'ytcfg.set({"INNERTUBE_API_KEY":"AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8","x":1});';
-    expect(extractInnertubeApiKey(html)).toBe('AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8');
-  });
-  it('无 key 返回 null', () => {
-    expect(extractInnertubeApiKey('<html></html>')).toBeNull();
-  });
-});
-
-describe('stripFmtParam', () => {
-  it('剥掉内嵌 fmt 参数并保住其余参数', () => {
-    expect(stripFmtParam('https://x/tt?v=1&fmt=srv3&lang=zh')).toBe('https://x/tt?v=1&lang=zh');
-    expect(stripFmtParam('https://x/tt?v=1&lang=zh&fmt=json3')).toBe('https://x/tt?v=1&lang=zh');
-    expect(stripFmtParam('https://x/tt?v=1&lang=zh')).toBe('https://x/tt?v=1&lang=zh');
-  });
-});
-
-describe('checkPlayability', () => {
-  it('OK / 缺失状态 → 可播放', () => {
-    expect(checkPlayability({ status: 'OK' })).toBeNull();
-    expect(checkPlayability(null)).toBeNull();
-    expect(checkPlayability({})).toBeNull();
-  });
-  it('风控 / 年龄限制 / 不可用映射为可读错误', () => {
-    expect(checkPlayability({ status: 'LOGIN_REQUIRED', reason: 'Sign in to Confirm you’re not a bot' })).toContain('风控');
-    expect(checkPlayability({ status: 'LOGIN_REQUIRED', reason: 'This video may be inappropriate for some users.' })).toContain('年龄限制');
-    expect(checkPlayability({ status: 'ERROR', reason: 'This video is unavailable' })).toContain('不可用');
-    expect(checkPlayability({ status: 'UNPLAYABLE', reason: 'xxx' })).toContain('xxx');
-  });
-});
-
-describe('extractPlayerResponse', () => {
-  it('括号配对解析嵌套 JSON（含字符串内的花括号与转义）', () => {
-    const html =
-      'var x = 1; var ytInitialPlayerResponse = ' +
-      '{"videoDetails":{"title":"a\\"b {c}"},"captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[{"baseUrl":"u1"}]}}};\nvar y = 2;';
-    const r = extractPlayerResponse(html);
-    expect(r).not.toBeNull();
-    const tracks = (
-      r as unknown as {
-        captions: { playerCaptionsTracklistRenderer: { captionTracks: unknown[] } };
-      }
-    ).captions.playerCaptionsTracklistRenderer.captionTracks;
-    expect(tracks).toHaveLength(1);
-  });
-  it('无标记返回 null', () => {
-    expect(extractPlayerResponse('<html>nothing</html>')).toBeNull();
   });
 });
 

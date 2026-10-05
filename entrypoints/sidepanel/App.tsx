@@ -29,11 +29,10 @@ export default function App() {
   const tab = useActiveTab();
   const pageKey = tab.url ? pageKeyOf(tab.url) : null;
 
-  // ---- 抽屉模式：全局 pin 状态（新标签页自动展开） ----
+  // ---- 全局 pin 状态（新标签页自动展开抽屉；抽屉与原生面板共用同一个开关） ----
   const [drawerPinned, setDrawerPinned] = useState(false);
   useEffect(() => {
-    if (!IN_DRAWER) return;
-    // 直接 watch storage：任一页面的抽屉切换 pin，所有已打开的抽屉实时同步
+    // 直接 watch storage：任一页面切换 pin，所有抽屉与原生面板实时同步
     void drawerPinnedItem.getValue().then(setDrawerPinned);
     return drawerPinnedItem.watch(setDrawerPinned);
   }, []);
@@ -293,7 +292,7 @@ export default function App() {
 
       <main className="flex min-h-0 flex-1 flex-col">
         {!currentProvider ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="flex flex-col items-center gap-4 px-6 pt-10 text-center">
             <Globe className="size-8 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">还没有配置 LLM 供应商</p>
             <button

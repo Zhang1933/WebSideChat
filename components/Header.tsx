@@ -81,31 +81,29 @@ export function Header({
       </DropdownMenu>
 
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={drawerPinned ? '取消自动展开：新标签页不再默认打开侧边栏' : '新标签页自动展开侧边栏'}
+          title={drawerPinned ? '已固定：新标签页自动展开侧边栏（点击取消）' : '固定：新标签页自动展开侧边栏'}
+          onClick={onToggleDrawerPin}
+        >
+          {drawerPinned ? (
+            <Pin className="size-4 fill-current text-primary" />
+          ) : (
+            <PinOff className="size-4" />
+          )}
+        </Button>
         {inDrawer && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={drawerPinned ? '取消自动展开：新标签页不再默认打开' : '新标签页自动展开'}
-              title={drawerPinned ? '已固定：新标签页自动展开（点击取消）' : '固定：新标签页自动展开'}
-              onClick={onToggleDrawerPin}
-            >
-              {drawerPinned ? (
-                <Pin className="size-4 fill-current text-primary" />
-              ) : (
-                <PinOff className="size-4" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="关闭抽屉"
-              title="关闭本页抽屉"
-              onClick={onCloseDrawer}
-            >
-              <X className="size-4" />
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="关闭抽屉"
+            title="关闭本页抽屉"
+            onClick={onCloseDrawer}
+          >
+            <X className="size-4" />
+          </Button>
         )}
         <Button variant="ghost" size="icon-sm" aria-label="设置" onClick={onOpenSettings}>
           <Settings className="size-4" />

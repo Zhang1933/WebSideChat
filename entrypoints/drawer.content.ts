@@ -160,5 +160,14 @@ export default defineContentScript({
         void setOpen(false);
       }
     });
+
+    // 扩展重载/更新后旧页面的 content script 失效：检测到上下文失效即
+    // 移除注入的抽屉宿主，避免留下空白/失灵的僵尸侧栏；图标点击自动回退原生面板
+    const invalidationTimer = setInterval(() => {
+      if (browser.runtime?.id == null) {
+        clearInterval(invalidationTimer);
+        host.remove();
+      }
+    }, 2000);
   },
 });

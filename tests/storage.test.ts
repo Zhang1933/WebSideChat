@@ -129,8 +129,8 @@ describe('visibleStartIndex', () => {
 });
 
 describe('effectiveContextLimit', () => {
-  it('未配置时普通模型取默认 128,000 token', () => {
-    expect(effectiveContextLimit({ model: 'deepseek-chat' })).toBe(128_000);
+  it('未配置时普通模型取默认 1,000,000 token', () => {
+    expect(effectiveContextLimit({ model: 'deepseek-chat' })).toBe(1_000_000);
   });
   it('模型名长度后缀推导（[1m] / [128k]）', () => {
     expect(effectiveContextLimit({ model: 'kimi-k2[1m]' })).toBe(1_000_000);
@@ -182,9 +182,9 @@ describe('parseContextInput', () => {
 });
 
 describe('contentBudgetChars', () => {
-  it('默认 128k 上下文 → 上下文 × 0.8 折算字符', () => {
-    // 128_000 * 0.8 * 1.7 = 174,080
-    expect(contentBudgetChars({ model: 'deepseek-chat' })).toBe(174_080);
+  it('默认 1M 上下文 → 上下文 × 0.8 折算字符（clamp 到 100 万）', () => {
+    // 1_000_000 * 0.8 * 1.7 = 1,360,000 → clamp 到 1,000,000
+    expect(contentBudgetChars({ model: 'deepseek-chat' })).toBe(1_000_000);
   });
   it('[1m] 模型放大预算（clamp 到 100 万字符）', () => {
     expect(contentBudgetChars({ model: 'kimi[1m]' })).toBe(1_000_000);

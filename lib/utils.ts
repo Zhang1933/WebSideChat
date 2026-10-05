@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** 上下文上限的自动默认值（token；模型名无长度后缀时） */
-export const AUTO_CONTEXT_LIMIT_TOKENS = 128_000;
+export const AUTO_CONTEXT_LIMIT_TOKENS = 1_000_000;
 
 export interface ContextSuffix {
   /** 上下文上限（token） */

@@ -29,7 +29,7 @@ const formSchema = z.object({
   apiKey: z.string(),
   model: z.string().min(1, '模型必填'),
   apiFormat: z.enum(['openai_chat', 'anthropic', 'openai_responses']),
-  // 留空 = 自动（模型名带 [1m] 后缀取 1,000,000，否则 128,000）
+  // 留空 = 自动（模型名带 [1m] 后缀取 1,000,000，否则 1,000,000）
   contextLimit: z
     .string()
     .refine(
@@ -91,7 +91,7 @@ function backfillImportTexts(editing: Provider | null): Record<string, string> {
 
 /** OAuth 登录成功后预填的默认 config.toml（指向 ChatGPT Codex 后端，可编辑后重新解析） */
 const DEFAULT_CODEX_CONFIG_TOML = [
-  'model = "gpt-5.5"',
+  'model = "gpt-6-luna"',
   'model_provider = "openai"',
   'model_reasoning_effort = "medium"',
   '',
@@ -162,7 +162,7 @@ export function ProviderForm({
 
   const apiFormat = watch('apiFormat');
   const model = watch('model');
-  const autoContextLimit = parseContextSuffix(model)?.limit ?? 128_000;
+  const autoContextLimit = parseContextSuffix(model)?.limit ?? 1_000_000;
 
   // 双向同步（form → 配置文本）：表单字段变化时把值写回 JSON/TOML；
   // 由 ConfigImport 失焦时反向应用（文本 → 表单），写回相同值时引用不变，无循环
@@ -189,7 +189,7 @@ export function ProviderForm({
       setValue('apiFormat', 'openai_responses');
       setValue('baseUrl', 'https://chatgpt.com/backend-api/codex');
       setValue('apiKey', result.access_token);
-      setValue('model', 'gpt-5.5');
+      setValue('model', 'gpt-6-luna');
       setAccountId(result.account_id);
       // 生成等效 auth.json + 默认 config.toml，预填导入区（可见、可改、可重新解析）
       const authJson = JSON.stringify(
@@ -220,7 +220,9 @@ export function ProviderForm({
 
   /** 把解析出的配置草稿应用到表单字段（解析填充与提交前自动解析共用） */
   function applyDraftToForm(draft: ProviderDraft) {
-    setAccountId(draft.accountId);
+    // 仅在草稿带有 accountId 时才设置：config.toml/空模板解析不含此字段，
+    // 不应覆盖 OAuth 登录已设置的值（这是 accountId 丢失的根因）
+    if (draft.accountId) setAccountId(draft.accountId);
     if (draft.apiFormat) setValue('apiFormat', draft.apiFormat);
     if (draft.baseUrl) setValue('baseUrl', draft.baseUrl);
     if (draft.apiKey) setValue('apiKey', draft.apiKey);
@@ -241,6 +243,7 @@ export function ProviderForm({
     baseUrl?: string;
     apiKey?: string;
     apiFormat?: FormValues['apiFormat'];
+    accountId?: string;
   }): Promise<string[] | null> {
     setFetchModelError(null);
     setFetchingModels(true);
@@ -249,6 +252,7 @@ export function ProviderForm({
         baseUrl: override?.baseUrl ?? watch('baseUrl'),
         apiKey: override?.apiKey ?? watch('apiKey'),
         apiFormat: override?.apiFormat ?? watch('apiFormat'),
+        accountId: override?.accountId ?? accountId,
       });
       if (list.length === 0) {
         setFetchModelError('接口返回空列表');
@@ -449,7 +453,7 @@ export function ProviderForm({
         ) : (
           <Input id="model" placeholder="模型 ID" {...register('model')} />
         )}
-        {fetchModelError && <p className="text-xs text-muted-foreground">{fetchModelError}</p>}
+        {fetchModelError && <p className="text-xs text-destructive">{fetchModelError}</p>}
         {errors.model && <p className="text-xs text-destructive">{errors.model.message}</p>}
       </div>
 
@@ -470,7 +474,7 @@ export function ProviderForm({
           }}
         />
         <p className="text-[11px] text-muted-foreground">
-          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000；也可直接填 1m、128k
+          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 1,000,000；也可直接填 1m、128k
         </p>
         {errors.contextLimit && (
           <p className="text-xs text-destructive">{errors.contextLimit.message}</p>

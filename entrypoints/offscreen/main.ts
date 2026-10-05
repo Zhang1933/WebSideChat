@@ -96,6 +96,13 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
     }
 
     let acc = '';
+    console.log('[WebSideChat offscreen] streamChat 开始', {
+      url: `${provider.baseUrl}/responses`,
+      model: provider.model,
+      hasKey: !!provider.apiKey,
+      hasAccountId: !!provider.accountId,
+      messageCount: convNow.messages.length,
+    });
     await streamChat(
       provider,
       { system: sys, messages: convNow.messages, maxTokens: 4096 },
@@ -109,6 +116,12 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
           emit({ type: 'turn:done', streamId, pageKey, conversation: fin });
         },
         onError: (err) => {
+          console.error('[WebSideChat offscreen] streamChat 错误', {
+            kind: err.kind,
+            message: err.message,
+            status: err.status,
+            partialLength: acc.length,
+          });
           let fin;
           if (acc.trim()) {
             // 中断/出错但已有部分内容：保留并标注

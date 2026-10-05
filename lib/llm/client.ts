@@ -74,19 +74,35 @@ export async function streamChat(
 
   const contentType = res.headers.get('content-type') ?? '';
 
+  // ChatGPT Codex 后端不设 Content-Type 头：content-type 为空时按 SSE 处理
+  // （我们请求了 stream:true，空 content-type 通常是服务端省略了头而非返回 JSON）
+  const isSSE = contentType.includes('text/event-stream') || !contentType;
+
   // 兜底：服务端忽略 stream:true，直接返回完整 JSON
-  if (!contentType.includes('text/event-stream')) {
+  if (!isSSE) {
+    const rawBody = await res.text().catch(() => '');
+    console.warn('[WebSideChat] 非 SSE 响应', {
+      status: res.status,
+      contentType,
+      bodyPreview: rawBody.slice(0, 300),
+    });
     try {
-      const json = await res.json();
+      const json = JSON.parse(rawBody);
       const full = adapter.extractFull(json);
       if (full == null) {
-        handlers.onError({ kind: 'parse', message: '无法从响应中提取文本' });
+        handlers.onError({
+          kind: 'parse',
+          message: `无法从响应中提取文本（content-type: ${contentType}，body: ${rawBody.slice(0, 150)}）`,
+        });
         return;
       }
       handlers.onDelta(full, full);
       handlers.onDone(full);
     } catch {
-      handlers.onError({ kind: 'parse', message: '响应解析失败' });
+      handlers.onError({
+        kind: 'parse',
+        message: `响应解析失败（HTTP ${res.status}，content-type: ${contentType}，body: ${rawBody.slice(0, 150) || '(空)'}）`,
+      });
     }
     return;
   }

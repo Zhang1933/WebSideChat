@@ -27,6 +27,10 @@ export const openaiResponsesAdapter: ProtocolAdapter = {
         instructions: req.system,
         input: req.messages.map((m) => ({ role: m.role, content: m.content })),
         stream: true,
+        // ChatGPT Codex 后端强制要求 store=false（ChatGPT 计划无服务端响应存储）
+        store: false,
+        // 关闭思考/推理：摘要与追问不需要 Chain-of-Thought，直接出结果更快
+        reasoning: { effort: 'none' },
         ...(req.maxTokens ? { max_output_tokens: req.maxTokens } : {}),
         ...(req.temperature != null ? { temperature: req.temperature } : {}),
       },

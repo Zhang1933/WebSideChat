@@ -22,7 +22,7 @@ export const CONFIG_TYPE_PRESETS: ProviderPreset[] = [
     name: 'Codex',
     baseUrl: 'https://api.openai.com/v1',
     apiFormat: 'openai_chat',
-    defaultModel: 'gpt-5.5',
+    defaultModel: 'gpt-6-luna',
     apiKeyUrl: 'https://platform.openai.com/api-keys',
     websiteUrl: 'https://openai.com',
     icon: 'openai',

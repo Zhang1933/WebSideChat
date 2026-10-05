@@ -56,7 +56,7 @@ function waitForAsyncExtract(tabId: number, timeoutMs = 30_000): Promise<Extract
  * ② 核心：hook 页面 fetch/XHR 捕获**播放器自己发的** timedtext 请求（带 pot 令牌，
  *    扩展上下文直接 fetch 没有 pot，YouTube 返回 200 空体）——通过 setOption
  *    重选当前轨道强制播放器重新拉取（模拟用户切换字幕），拿到响应体后还原钩子
- * ③ 捕获失败时降级：重放捕获的 URL → 用户轨道 baseUrl（+tlang 自动翻译）→ get_transcript
+ * ③ 捕获失败时降级：重放捕获的 URL（带 pot）→ get_transcript（带 SAPISIDHASH 鉴权头）
  */
 async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
   console.log('[WebSideChat extract] extractYouTubeFromPanel 开始, tabId:', tabId);
@@ -80,8 +80,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         /** 捕获到的播放器 timedtext 请求 URL（含 pot 令牌）与响应体 */
         capturedUrl?: string | null;
         capturedBody?: string | null;
-        /** 从 videoplayback 流地址提取的 pot（兜底用，部分环境存在） */
-        pot?: string | null;
         /** 页面算出的 SAPISIDHASH 鉴权头（get_transcript 需要，登录用户才有） */
         sapisidhash?: string | null;
       }
@@ -144,19 +142,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         await new Promise((r2) => setTimeout(r2, 200));
       }
       if (!playerData) return null;
-
-      // 方案 B 兜底：从资源时序里找 videoplayback 流地址携带的 pot（部分环境存在）
-      let pot: string | null = null;
-      try {
-        const entries = performance.getEntriesByType('resource') as { name?: string }[];
-        for (let i = entries.length - 1; i >= 0; i--) {
-          const name = entries[i]?.name ?? '';
-          if (name.includes('videoplayback') && name.includes('pot=')) {
-            pot = new URL(name).searchParams.get('pot');
-            break;
-          }
-        }
-      } catch { /* ignore */ }
 
       // get_transcript 兜底用的鉴权头（页面自己的请求带 SAPISIDHASH，缺它会被判 403；未登录无 SAPISID）
       let sapisidhash: string | null = null;
@@ -256,7 +241,7 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         }
       }
 
-      return { ...playerData, capturedUrl, capturedBody, pot, sapisidhash };
+      return { ...playerData, capturedUrl, capturedBody, sapisidhash };
     },
     });
     res = results?.[0] as { result: unknown } | undefined;
@@ -280,7 +265,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         translationLanguage?: string;
         capturedUrl?: string | null;
         capturedBody?: string | null;
-        pot?: string | null;
         sapisidhash?: string | null;
       }
     | null;
@@ -324,42 +308,9 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
     }
   }
 
-  // ③ 用户选中轨道的 baseUrl（扩展上下文无 pot 常返回空）；开了"自动翻译"则追加 tlang
+  // ③ get_transcript 兜底（"显示转录稿"按钮的端点；返回默认语言，可能不等于用户选择）
   if (!transcript.trim()) {
-    const active = data.activeTrack;
-    const track =
-      data.tracks.find(
-        (t) => t.languageCode === active.languageCode && (active.vssId ? t.vssId === active.vssId : true),
-      ) ?? active;
-    const baseUrl = track.baseUrl ?? active.baseUrl;
-    if (baseUrl) {
-      let captionUrl = baseUrl;
-      if (data.translationLanguage && !captionUrl.includes('tlang=')) {
-        captionUrl += `&tlang=${encodeURIComponent(data.translationLanguage)}`;
-      }
-      try {
-        const r = await fetch(captionUrl, { credentials: 'include' });
-        const text = await r.text();
-        console.log('[WebSideChat extract] ③ 直接 timedtext:', { status: r.status, len: text.length });
-        if (r.ok && text.trim()) transcript = parseBody(text);
-
-        // ③b 空响应且拿到了 videoplayback 的 pot → 带 pot 重试（pot/fmt/tlang 不在 sparams 签名参数内）
-        if (!transcript.trim() && data.pot && !captionUrl.includes('pot=')) {
-          const potUrl = `${captionUrl}&potc=1&pot=${encodeURIComponent(data.pot)}`;
-          const pr2 = await fetch(potUrl, { credentials: 'include' });
-          const text2 = await pr2.text();
-          console.log('[WebSideChat extract] ③b 带 pot 重试:', { status: pr2.status, len: text2.length });
-          if (pr2.ok && text2.trim()) transcript = parseBody(text2);
-        }
-      } catch (e) {
-        console.log('[WebSideChat extract] ③ 直接 timedtext 异常:', e);
-      }
-    }
-  }
-
-  // ④ get_transcript 兜底（"显示转录稿"按钮的端点；返回默认语言，可能不等于用户选择）
-  if (!transcript.trim()) {
-    console.log('[WebSideChat extract] ①-③ 均未取到，尝试 get_transcript...');
+    console.log('[WebSideChat extract] ①② 均未取到，尝试 get_transcript...');
     try {
       let videoId = data.videoId ?? '';
       if (!videoId) {
@@ -417,7 +368,7 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
   }
 
   if (!transcript.trim()) {
-    throw new ExtractError('字幕获取失败（播放器捕获 / 直接请求 / get_transcript 均未取到），请确认字幕已在播放器中正常显示后重试');
+    throw new ExtractError('字幕获取失败（播放器捕获与 get_transcript 均未取到），请确认字幕已在播放器中正常显示后重试');
   }
 
   return {

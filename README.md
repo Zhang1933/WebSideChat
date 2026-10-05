@@ -1,5 +1,8 @@
 # WebSideChat
 
+WebSideChat，用你喜欢的AI与网页对话
+
+
 浏览器扩展（Chrome / Edge，Manifest V3）：一键提取当前网页正文，交给 LLM 生成结构化摘要，并可基于该页面内容持续追问。全程在 Side Panel 侧边栏完成，无 popup。
 
 供应商配置体验参考 [cc-switch](https://github.com/farion1231/cc-switch)：多供应商卡片列表 + "使用中"高亮切换 + 预设网格→表单两步式新增，`apiFormat` 字段区分协议格式。

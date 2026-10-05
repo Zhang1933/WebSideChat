@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanCodexToml, parseProviderConfig } from '@/lib/importConfig';
+import { cleanCodexToml, parseProviderConfig, syncDraftToTexts } from '@/lib/importConfig';
 
 describe('parseProviderConfig', () => {
   it('解析 ~/.claude/settings.json（env 包装格式）', () => {
@@ -310,3 +310,59 @@ describe('cleanCodexToml', () => {
     expect(cleanCodexToml(onlyNoise)).toBe(onlyNoise);
   });
 });
+
+describe('syncDraftToTexts（表单 → 配置文本反向同步）', () => {
+  it('Claude settings.json：baseUrl/apiKey/model 写回 env', () => {
+    const text = JSON.stringify({ env: { ANTHROPIC_BASE_URL: 'https://old', ANTHROPIC_AUTH_TOKEN: 'old-key', ANTHROPIC_MODEL: 'old-model' } });
+    const next = syncDraftToTexts({ main: text }, 'claude-settings', {
+      baseUrl: 'https://new', apiKey: 'new-key', model: 'new-model',
+    });
+    const parsed = JSON.parse(next.main!);
+    expect(parsed.env.ANTHROPIC_BASE_URL).toBe('https://new');
+    expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('new-key');
+    expect(parsed.env.ANTHROPIC_MODEL).toBe('new-model');
+  });
+
+  it('Codex：auth.json 的 OPENAI_API_KEY 与 config.toml 的 base_url/bearer/model 写回', () => {
+    const next = syncDraftToTexts(
+      {
+        auth: JSON.stringify({ OPENAI_API_KEY: 'old' }),
+        toml: 'model = "old"\nmodel_provider = "x"\n\n[model_providers.x]\nbase_url = "https://old"\nexperimental_bearer_token = "old-k"',
+      },
+      'codex',
+      { baseUrl: 'https://new', apiKey: 'new-k', model: 'new-m' },
+    );
+    expect(JSON.parse(next.auth!).OPENAI_API_KEY).toBe('new-k');
+    const toml = next.toml!;
+    expect(toml).toContain('"new-m"');
+    expect(toml).toContain('https://new');
+    expect(toml).toContain('new-k');
+  });
+
+  it('OpenCode：options.baseURL/apiKey 与模型写回，顶层 model 同步 provider/model', () => {
+    const text = JSON.stringify({ model: 'c/m1', provider: { c: { npm: '@ai-sdk/openai-compatible', options: { baseURL: 'https://o', apiKey: 'ok' }, models: { m1: {} } } } });
+    const next = syncDraftToTexts({ main: text }, 'opencode-json', {
+      baseUrl: 'https://n', apiKey: 'nk', model: 'm2',
+    });
+    const parsed = JSON.parse(next.main!);
+    expect(parsed.provider.c.options.baseURL).toBe('https://n');
+    expect(parsed.provider.c.options.apiKey).toBe('nk');
+    expect(parsed.model).toBe('c/m2');
+    expect(parsed.provider.c.models).toHaveProperty('m2');
+  });
+
+  it('空值不覆盖、解析失败原样保留、无变化返回原引用', () => {
+    const text = JSON.stringify({ env: { ANTHROPIC_AUTH_TOKEN: 'keep' } });
+    // 空 model 不覆盖已有
+    const kept = syncDraftToTexts({ main: text }, 'claude-settings', { apiKey: 'k2' });
+    expect(JSON.parse(kept.main!).env.ANTHROPIC_AUTH_TOKEN).toBe('k2');
+    // 解析失败
+    const broken = syncDraftToTexts({ main: '{bad' }, 'claude-settings', { apiKey: 'x' });
+    expect(broken.main).toBe('{bad');
+    // 无变化 → 原引用
+    const same = syncDraftToTexts({ main: text }, 'claude-settings', {});
+    expect(same).toBe(same); // 返回原对象
+    expect(Object.is(same, { ...same })).toBe(false); // 确认是比较而非新建
+  });
+});
+

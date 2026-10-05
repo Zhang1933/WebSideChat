@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  test:
+    name: 类型检查 + 测试 + 构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm 11 的 allow-scripts：预批准 esbuild 安装脚本（本机曾踩过）
+      - name: 安装依赖
+        run: |
+          npm ci
+          npx approve-scripts esbuild || true
+
+      - name: 类型检查
+        run: npm run compile
+
+      - name: 单元测试
+        run: npm test
+
+      - name: 构建
+        run: npm run build
+
+      - name: 上传构建产物（供排查）
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-mv3-${{ github.sha }}
+          path: .output/chrome-mv3
+          retention-days: 7

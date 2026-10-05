@@ -1,11 +1,7 @@
 import { ChevronDown, ChevronRight, FileUp, WandSparkles } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  parseAndMergeTexts,
-  type ProviderDraft,
-} from '@/lib/importConfig';
+import { parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
 import type { ProviderPreset } from '@/types';
 
 type HintKey = NonNullable<ProviderPreset['importHint']>;
@@ -24,31 +20,6 @@ interface Slot {
   /** 预填模板（新增时可编辑的初值，替代占位符） */
   prefill?: string;
 }
-
-/** 各类型（codex 之外）单框的可编辑预填模板 */
-const PREFILL: Record<Exclude<HintKey, 'codex'>, string> = {
-  'claude-settings': [
-    '{',
-    '  "env": {',
-    '    "ANTHROPIC_BASE_URL": "",',
-    '    "ANTHROPIC_AUTH_TOKEN": "",',
-    '    "ANTHROPIC_MODEL": ""',
-    '  }',
-    '}',
-  ].join('\n'),
-  'opencode-json': [
-    '{',
-    '  "model": "custom/model-id",',
-    '  "provider": {',
-    '    "custom": {',
-    '      "npm": "@ai-sdk/openai-compatible",',
-    '      "options": { "baseURL": "", "apiKey": "" },',
-    '      "models": { "model-id": {} }',
-    '    }',
-    '  }',
-    '}',
-  ].join('\n'),
-};
 
 /** OpenAI 类型双框（auth.json + config.toml），其余类型单框 */
 function slotsFor(hint: HintKey | undefined): Slot[] {
@@ -98,9 +69,34 @@ function slotsFor(hint: HintKey | undefined): Slot[] {
   ];
 }
 
+/** 各类型（codex 之外）单框的可编辑预填模板 */
+const PREFILL: Record<Exclude<HintKey, 'codex'>, string> = {
+  'claude-settings': [
+    '{',
+    '  "env": {',
+    '    "ANTHROPIC_BASE_URL": "",',
+    '    "ANTHROPIC_AUTH_TOKEN": "",',
+    '    "ANTHROPIC_MODEL": ""',
+    '  }',
+    '}',
+  ].join('\n'),
+  'opencode-json': [
+    '{',
+    '  "model": "custom/model-id",',
+    '  "provider": {',
+    '    "custom": {',
+    '      "npm": "@ai-sdk/openai-compatible",',
+    '      "options": { "baseURL": "", "apiKey": "" },',
+    '      "models": { "model-id": {} }',
+    '    }',
+    '  }',
+    '}',
+  ].join('\n'),
+};
+
 /**
- * 配置文件导入区：粘贴或选择文件，解析后回填表单字段。
- * OpenAI 类型提供 auth.json / config.toml 两个输入框，一次合并填充。
+ * 配置文件导入区：粘贴/选择文件后，失焦即自动解析回填表单（无按钮）；
+ * 表单字段变化时由父组件反向同步回输入框（双向同步）。
  * 文本状态由父组件持有（受控）：保存时父组件可对未解析的内容自动解析。
  */
 export function ConfigImport({
@@ -116,8 +112,8 @@ export function ConfigImport({
   onTextsChange: (next: Record<string, string>) => void;
   onApply: (draft: ProviderDraft) => void;
 }) {
-  const [open, setOpen] = useState(true);
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [open, setOpen] = useState(true);
   const slots = slotsFor(hint);
 
   // 预填模板：新增（各框均空）时填入可编辑的初值，用户已有内容则不覆盖
@@ -131,13 +127,14 @@ export function ConfigImport({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hint]);
 
-  /** 解析所有非空框并合并应用；部分失败时仍应用成功部分并提示失败原因 */
-  function applyMerged() {
+  /** 解析所有非空框并合并应用（失焦/选文件后自动触发）；部分失败时仍应用成功部分 */
+  function applyMerged(source?: Record<string, string>) {
+    const from = source ?? texts;
     const { draft, labels, errors } = parseAndMergeTexts(
-      slots.map((s) => ({ key: s.key, label: s.label, text: texts[s.key] ?? '' })),
+      slots.map((s) => ({ key: s.key, label: s.label, text: from[s.key] ?? '' })),
     );
     if (labels.length === 0) {
-      setStatus({ ok: false, msg: errors[0] ?? '请先粘贴或选择文件' });
+      if (errors.length > 0) setStatus({ ok: false, msg: errors[0] ?? '配置未识别' });
       return;
     }
     onApply(draft);
@@ -161,14 +158,14 @@ export function ConfigImport({
     if (!file) return;
     try {
       const raw = await file.text();
-      onTextsChange({ ...texts, [slotKey]: raw });
+      const next = { ...texts, [slotKey]: raw };
+      onTextsChange(next);
+      applyMerged(next); // 选文件后立即解析（不等失焦）
     } catch (err) {
       setStatus({ ok: false, msg: `读取文件失败：${(err as Error).message}` });
     }
     e.target.value = '';
   }
-
-  const hasAnyText = slots.some((s) => (texts[s.key] ?? '').trim());
 
   return (
     <div className="rounded-lg border border-dashed">
@@ -204,6 +201,7 @@ export function ConfigImport({
               <Textarea
                 value={texts[slot.key] ?? ''}
                 onChange={(e) => onTextsChange({ ...texts, [slot.key]: e.target.value })}
+                onBlur={() => applyMerged()}
                 placeholder={slot.placeholder}
                 rows={slot.key === 'toml' ? 6 : 4}
                 className="font-mono text-[11px]"
@@ -212,16 +210,11 @@ export function ConfigImport({
             </div>
           ))}
 
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" size="xs" disabled={!hasAnyText} onClick={applyMerged}>
-              解析并填充
-            </Button>
-            {status && (
-              <span className={status.ok ? 'text-[11px] text-primary' : 'text-[11px] text-destructive'}>
-                {status.msg}
-              </span>
-            )}
-          </div>
+          {status && (
+            <p className={status.ok ? 'text-[11px] text-primary' : 'text-[11px] text-destructive'}>
+              {status.msg}
+            </p>
+          )}
         </div>
       )}
     </div>

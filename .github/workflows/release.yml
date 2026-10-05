@@ -1,0 +1,63 @@
+name: Release
+
+# 发布流程：推送形如 v0.1.0 的 tag 时触发
+#   git tag v0.1.0 && git push origin v0.1.0
+# 版本号取自 tag；测试不通过则不发布（job 依赖保证顺序）
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # 创建 Release 与上传产物
+
+jobs:
+  # ① 测试门禁：不通过则整个 workflow 失败，不会创建 Release
+  test:
+    name: 类型检查 + 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx approve-scripts esbuild || true
+      - run: npm run compile
+      - run: npm test
+      - run: npm run build
+
+  # ② 打包并发布：仅在 test 成功后运行
+  release:
+    name: 打包发布
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx approve-scripts esbuild || true
+
+      # 同步 package.json 版本号到 tag 版本（提交里改不改都行，tag 为准）
+      - name: 同步版本号
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: 构建 zip
+        run: npm run zip
+
+      - name: 重命名产物
+        run: |
+          cd .output
+          mv websidechat-*-chrome.zip websidechat-${GITHUB_REF_NAME}-chrome.zip
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: WebSideChat ${{ github.ref_name }}
+          generate_release_notes: true # 自动按 commit 生成更新说明
+          files: .output/websidechat-${{ github.ref_name }}-chrome.zip

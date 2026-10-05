@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
 import { loginCodexOAuth } from '@/lib/oauth';
-import { cleanCodexToml, parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
+import { cleanCodexToml, parseAndMergeTexts, syncDraftToTexts, type ProviderDraft } from '@/lib/importConfig';
 import { parseContextInput, parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
 import { ConfigImport } from './ConfigImport';
@@ -164,6 +164,21 @@ export function ProviderForm({
   const model = watch('model');
   const autoContextLimit = parseContextSuffix(model)?.limit ?? 128_000;
 
+  // 双向同步（form → 配置文本）：表单字段变化时把值写回 JSON/TOML；
+  // 由 ConfigImport 失焦时反向应用（文本 → 表单），写回相同值时引用不变，无循环
+  useEffect(() => {
+    const sub = watch((values) => {
+      setImportTexts((prev) =>
+        syncDraftToTexts(prev, preset.importHint, {
+          baseUrl: values.baseUrl,
+          apiKey: values.apiKey,
+          model: values.model,
+        }),
+      );
+    });
+    return () => sub.unsubscribe();
+  }, [watch, preset.importHint]);
+
   /** ChatGPT 网页登录（同 codex login 的 PKCE 流程）：成功后生成 auth.json + 默认
    *  config.toml 预填到导入区，并直接填入表单字段 */
   async function handleCodexLogin() {
@@ -253,7 +268,7 @@ export function ProviderForm({
   return (
     <form
       onSubmit={(e) => {
-        // 用户可能粘贴了配置但没点「解析并填充」：提交前先自动解析应用，
+        // 兜底：粘贴后未失焦直接提交时自动解析应用（正常路径是失焦即解析），
         // 之后唯一强制校验的是没有默认值的 API Key
         const { draft } = parseAndMergeTexts(
           Object.entries(importTexts).map(([key, text]) => ({ key, text })),
@@ -271,7 +286,7 @@ export function ProviderForm({
           if (!getValues('apiKey').trim()) {
             setError('apiKey', {
               type: 'manual',
-              message: 'API Key 不能为空：粘贴配置文件后点「解析并填充」，或手动填写',
+              message: 'API Key 不能为空：粘贴配置文件（失焦自动填充），或手动填写',
             });
             return;
           }
@@ -363,12 +378,6 @@ export function ProviderForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="baseUrl">Base URL</Label>
-        <Input id="baseUrl" placeholder={BASE_URL_PLACEHOLDER[apiFormat]} {...register('baseUrl')} />
-        {errors.baseUrl && <p className="text-xs text-destructive">{errors.baseUrl.message}</p>}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
         <Label htmlFor="apiKey">API Key</Label>
         <div className="relative">
           <Input
@@ -389,6 +398,12 @@ export function ProviderForm({
           </button>
         </div>
         {errors.apiKey && <p className="text-xs text-destructive">{errors.apiKey.message}</p>}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="baseUrl">Base URL</Label>
+        <Input id="baseUrl" placeholder={BASE_URL_PLACEHOLDER[apiFormat]} {...register('baseUrl')} />
+        {errors.baseUrl && <p className="text-xs text-destructive">{errors.baseUrl.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">

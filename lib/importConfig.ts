@@ -313,3 +313,108 @@ function parseOpenCodeConfig(obj: Record<string, unknown>): ParsedProviderConfig
       : 'openai_chat';
   return { source: 'opencode-json', apiFormat, baseUrl, apiKey, model, contextLimit };
 }
+
+/**
+ * 表单字段 → 配置文件文本的反向同步（双向同步的 form→JSON 方向）。
+ * 按配置类型把 baseUrl/apiKey/model 写回对应文本；文本不可解析或值为空则原样保留。
+ * 返回新对象；若所有槽位均未变化则返回原引用（避免无谓重渲染）。
+ */
+export function syncDraftToTexts(
+  texts: Record<string, string>,
+  hint: 'claude-settings' | 'codex' | 'opencode-json' | undefined,
+  values: { baseUrl?: string; apiKey?: string; model?: string },
+): Record<string, string> {
+  const next = { ...texts };
+  if (hint === 'codex') {
+    if (next.auth?.trim()) next.auth = syncCodexAuth(next.auth, values);
+    if (next.toml?.trim()) next.toml = syncCodexTomlText(next.toml, values);
+  } else if (next.main?.trim()) {
+    next.main =
+      hint === 'opencode-json'
+        ? syncOpenCodeJsonText(next.main, values)
+        : syncClaudeSettingsText(next.main, values);
+  }
+  const changed = Object.keys(next).some((k) => next[k] !== texts[k]);
+  return changed ? next : texts;
+}
+
+function syncClaudeSettingsText(text: string, v: { baseUrl?: string; apiKey?: string; model?: string }): string {
+  try {
+    const obj = JSON.parse(text) as Record<string, unknown>;
+    const env = (obj.env && typeof obj.env === 'object' ? obj.env : obj) as Record<string, unknown>;
+    if (v.baseUrl) env.ANTHROPIC_BASE_URL = v.baseUrl;
+    if (v.apiKey) env.ANTHROPIC_AUTH_TOKEN = v.apiKey;
+    if (v.model) env.ANTHROPIC_MODEL = v.model;
+    if (obj.env) obj.env = env;
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function syncCodexAuth(text: string, v: { apiKey?: string }): string {
+  if (!v.apiKey) return text;
+  try {
+    const obj = JSON.parse(text) as Record<string, unknown>;
+    if (typeof obj.OPENAI_API_KEY === 'string') obj.OPENAI_API_KEY = v.apiKey;
+    const tokens = obj.tokens as Record<string, unknown> | undefined;
+    if (tokens && typeof tokens.access_token === 'string') tokens.access_token = v.apiKey;
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function syncCodexTomlText(
+  text: string,
+  v: { baseUrl?: string; apiKey?: string; model?: string },
+): string {
+  try {
+    const toml = parseToml(text) as Record<string, unknown>;
+    if (v.model) toml.model = v.model;
+    const providers = toml.model_providers as Record<string, unknown> | undefined;
+    if (providers && typeof providers === 'object') {
+      const activeKey = typeof toml.model_provider === 'string' ? toml.model_provider : Object.keys(providers)[0];
+      const entry = providers[activeKey!] as Record<string, unknown> | undefined;
+      if (entry && typeof entry === 'object') {
+        if (v.baseUrl) entry.base_url = v.baseUrl;
+        if (v.apiKey) entry.experimental_bearer_token = v.apiKey;
+        providers[activeKey!] = entry;
+      }
+    }
+    return stringifyToml(toml);
+  } catch {
+    return text;
+  }
+}
+
+function syncOpenCodeJsonText(
+  text: string,
+  v: { baseUrl?: string; apiKey?: string; model?: string },
+): string {
+  try {
+    const obj = JSON.parse(text) as Record<string, unknown>;
+    const providerMap = obj.provider as Record<string, unknown> | undefined;
+    if (providerMap && typeof providerMap === 'object') {
+      const topModel = typeof obj.model === 'string' ? obj.model : undefined;
+      const selectedId = topModel?.includes('/')
+        ? topModel.split('/')[0]!
+        : Object.keys(providerMap)[0]!;
+      const entry = providerMap[selectedId] as Record<string, unknown> | undefined;
+      if (entry && typeof entry === 'object') {
+        const options = (entry.options ?? {}) as Record<string, unknown>;
+        if (v.baseUrl) options.baseURL = v.baseUrl;
+        if (v.apiKey) options.apiKey = v.apiKey;
+        entry.options = options;
+        if (v.model) {
+          entry.models = { [v.model]: {} };
+          obj.model = `${selectedId}/${v.model}`;
+        }
+        providerMap[selectedId] = entry;
+      }
+    }
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return text;
+  }
+}

@@ -4,6 +4,40 @@ import { Textarea } from '@/components/ui/textarea';
 import { parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
 import type { ProviderPreset } from '@/types';
 
+/** 按槽位类型校验文本语法，返回错误信息（null = 格式正确或为空） */
+function validateSyntax(text: string, isToml: boolean): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  if (isToml) {
+    try {
+      // smol-toml 不在组件里 import（避免包体积），只做轻量 TOML 语法检查：
+      // 至少有一行 key = value 或 [section]，且不含明显非法行
+      const lines = trimmed.split('\n');
+      const hasContent = lines.some((l) => /^\s*(\[.+\]\s*$|[\w."'-]+\s*=)/.test(l));
+      if (!hasContent) return '不是有效的 TOML 格式';
+      return null;
+    } catch {
+      return 'TOML 解析失败';
+    }
+  }
+  try {
+    JSON.parse(trimmed);
+    return null;
+  } catch (err) {
+    const msg = (err as Error).message;
+    // 提取行列号（V8 格式: "Unexpected token } in JSON at position 123"）
+    const posMatch = msg.match(/position (\d+)/);
+    if (posMatch) {
+      const pos = Number(posMatch[1]);
+      const before = trimmed.slice(0, pos);
+      const line = before.split('\n').length;
+      const col = pos - before.lastIndexOf('\n');
+      return `JSON 语法错误（第 ${line} 行第 ${col} 列）: ${msg.split(' at position')[0]}`;
+    }
+    return `JSON 语法错误: ${msg}`;
+  }
+}
+
 type HintKey = NonNullable<ProviderPreset['importHint']>;
 
 const HINT_TITLE: Record<HintKey, string> = {
@@ -181,34 +215,55 @@ export function ConfigImport({
 
       {open && (
         <div className="flex flex-col gap-3 border-t px-3 py-2.5">
-          {slots.map((slot) => (
-            <div key={slot.key} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                {slot.label && (
-                  <span className="text-xs font-medium text-foreground">{slot.label}</span>
-                )}
-                <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                  <FileUp className="size-3.5" />
-                  选择文件…
-                  <input
-                    type="file"
-                    accept={slot.accept}
-                    className="hidden"
-                    onChange={(e) => void handleFile(slot.key, e)}
+          {slots.map((slot) => {
+            const isToml = slot.key === 'toml';
+            const syntaxError = validateSyntax(texts[slot.key] ?? '', isToml);
+            return (
+              <div key={slot.key} className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  {slot.label && (
+                    <span className="text-xs font-medium text-foreground">{slot.label}</span>
+                  )}
+                  <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <FileUp className="size-3.5" />
+                    选择文件…
+                    <input
+                      type="file"
+                      accept={slot.accept}
+                      className="hidden"
+                      onChange={(e) => void handleFile(slot.key, e)}
+                    />
+                  </label>
+                </div>
+                <div className="relative">
+                  <Textarea
+                    value={texts[slot.key] ?? ''}
+                    onChange={(e) => onTextsChange({ ...texts, [slot.key]: e.target.value })}
+                    onBlur={() => applyMerged()}
+                    placeholder={slot.placeholder}
+                    rows={slot.key === 'toml' ? 6 : 4}
+                    className={`font-mono text-[11px] ${syntaxError ? 'syntax-error' : ''}`}
+                    spellCheck={false}
                   />
-                </label>
+                  {syntaxError && (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 bottom-0 border-b-2 border-dashed border-destructive/60"
+                      style={{ height: '3px' }}
+                    />
+                  )}
+                </div>
+                {syntaxError && (
+                  <p className="flex items-center gap-1 text-[11px] text-destructive">
+                    <span
+                      className="inline-block h-[3px] w-4 rounded-full"
+                      style={{ background: 'currentColor', textDecoration: 'wavy' }}
+                    />
+                    {syntaxError}
+                  </p>
+                )}
               </div>
-              <Textarea
-                value={texts[slot.key] ?? ''}
-                onChange={(e) => onTextsChange({ ...texts, [slot.key]: e.target.value })}
-                onBlur={() => applyMerged()}
-                placeholder={slot.placeholder}
-                rows={slot.key === 'toml' ? 6 : 4}
-                className="font-mono text-[11px]"
-                spellCheck={false}
-              />
-            </div>
-          ))}
+            );
+          })}
 
           {status && (
             <p className={status.ok ? 'text-[11px] text-primary' : 'text-[11px] text-destructive'}>

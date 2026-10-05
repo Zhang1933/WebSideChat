@@ -116,6 +116,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  /* JSON/TOML 语法错误：输入框文字红色波浪下划线（同 cc-switch） */
+  .syntax-error,
+  .syntax-error:focus {
+    text-decoration: underline wavy oklch(0.577 0.245 27.325 / 0.7);
+    text-decoration-skip-ink: none;
+    text-underline-offset: 3px;
+  }
   body {
     @apply bg-background text-foreground;
     font-family:

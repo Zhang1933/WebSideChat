@@ -56,7 +56,7 @@ function waitForAsyncExtract(tabId: number, timeoutMs = 30_000): Promise<Extract
  * ② 核心：hook 页面 fetch/XHR 捕获**播放器自己发的** timedtext 请求（带 pot 令牌，
  *    扩展上下文直接 fetch 没有 pot，YouTube 返回 200 空体）——通过 setOption
  *    重选当前轨道强制播放器重新拉取（模拟用户切换字幕），拿到响应体后还原钩子
- * ③ 捕获失败时降级：重放捕获的 URL（带 pot）→ get_transcript（带 SAPISIDHASH 鉴权头）
+ * ③ 捕获失败时降级：重放捕获的 URL（带 pot）
  */
 async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
   console.log('[WebSideChat extract] extractYouTubeFromPanel 开始, tabId:', tabId);
@@ -71,7 +71,7 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
     func: async () => {
       interface Track { baseUrl?: string; languageCode?: string; kind?: string; vssId?: string }
       interface PlayerData {
-        title: string; author?: string; videoId?: string;
+        title: string; author?: string;
         tracks: Track[];
         /** 用户当前选中的字幕轨道（字幕关闭时为 null） */
         activeTrack: Track | null;
@@ -80,8 +80,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         /** 捕获到的播放器 timedtext 请求 URL（含 pot 令牌）与响应体 */
         capturedUrl?: string | null;
         capturedBody?: string | null;
-        /** 页面算出的 SAPISIDHASH 鉴权头（get_transcript 需要，登录用户才有） */
-        sapisidhash?: string | null;
       }
 
       // 播放器实时实例：轨道列表 + 用户选中状态（SPA 导航后也正确），需轮询等待就绪
@@ -95,7 +93,7 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
             | null;
           const pr = playerEl?.getPlayerResponse?.() as
             | {
-                videoDetails?: { title?: string; author?: string; videoId?: string };
+                videoDetails?: { title?: string; author?: string };
                 captions?: {
                   playerCaptionsTracklistRenderer?: { captionTracks?: Track[] };
                 };
@@ -124,7 +122,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
           return {
             title: details?.title ?? '',
             author: details?.author,
-            videoId: details?.videoId,
             tracks,
             activeTrack,
             translationLanguage,
@@ -142,19 +139,6 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         await new Promise((r2) => setTimeout(r2, 200));
       }
       if (!playerData) return null;
-
-      // get_transcript 兜底用的鉴权头（页面自己的请求带 SAPISIDHASH，缺它会被判 403；未登录无 SAPISID）
-      let sapisidhash: string | null = null;
-      try {
-        const sid = /(?:^|;\s)SAPISID=([^;]+)/.exec(document.cookie)?.[1];
-        if (sid) {
-          const ts = Math.floor(Date.now() / 1000);
-          const bytes = new TextEncoder().encode(`${sid} ${location.origin} ${ts}`);
-          const digest = await crypto.subtle.digest('SHA-1', bytes);
-          const hash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
-          sapisidhash = `SAPISIDHASH ${ts}_${hash}`;
-        }
-      } catch { /* ignore */ }
 
       // 用户开了字幕 → 捕获播放器自己的 timedtext 请求（带 pot；扩展上下文直接 fetch 没有
       // pot，YouTube 返回 200 空体）。做法：hook fetch/XHR 记录响应体 → 强制播放器重新拉取
@@ -241,7 +225,7 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
         }
       }
 
-      return { ...playerData, capturedUrl, capturedBody, sapisidhash };
+      return { ...playerData, capturedUrl, capturedBody };
     },
     });
     res = results?.[0] as { result: unknown } | undefined;
@@ -259,13 +243,11 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
     | {
         title: string;
         author?: string;
-        videoId?: string;
         tracks: { baseUrl?: string; languageCode?: string; kind?: string; vssId?: string }[];
         activeTrack: { baseUrl?: string; languageCode?: string; kind?: string; vssId?: string } | null;
         translationLanguage?: string;
         capturedUrl?: string | null;
         capturedBody?: string | null;
-        sapisidhash?: string | null;
       }
     | null;
 
@@ -308,67 +290,8 @@ async function extractYouTubeFromPanel(tabId: number): Promise<ExtractResult> {
     }
   }
 
-  // ③ get_transcript 兜底（"显示转录稿"按钮的端点；返回默认语言，可能不等于用户选择）
   if (!transcript.trim()) {
-    console.log('[WebSideChat extract] ①② 均未取到，尝试 get_transcript...');
-    try {
-      let videoId = data.videoId ?? '';
-      if (!videoId) {
-        const withUrl = data.tracks.find((t) => t.baseUrl);
-        if (withUrl?.baseUrl) videoId = new URL(withUrl.baseUrl).searchParams.get('v') ?? '';
-      }
-      if (videoId) {
-        const gtRes = await fetch(
-          `https://www.youtube.com/youtubei/v1/get_transcript?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilJV_Y-DbNMCg`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              // 页面自己的 get_transcript 带 SAPISIDHASH 鉴权头，缺失会被判 403
-              ...(data.sapisidhash ? { Authorization: data.sapisidhash } : {}),
-            },
-            body: JSON.stringify({
-              context: { client: { clientName: 'WEB', clientVersion: '2.20240101.00.00' } },
-              params: btoa(`\x0a${String.fromCharCode(videoId.length)}${videoId}`),
-            }),
-          },
-        );
-        const gtRaw = await gtRes.text();
-        console.log('[WebSideChat extract] get_transcript:', { status: gtRes.status, len: gtRaw.length });
-        if (gtRes.ok && gtRaw.trim()) {
-          const gtData = JSON.parse(gtRaw);
-          const segments = gtData?.actions?.[0]?.updateEngagementPanelAction?.content
-            ?.transcriptRenderer?.content?.transcriptSearchPanelRenderer?.body
-            ?.transcriptSegmentListRenderer?.initialSegments;
-          if (Array.isArray(segments)) {
-            const lines: string[] = [];
-            for (const seg of segments) {
-              const r = seg?.transcriptSegmentRenderer;
-              if (!r) continue;
-              const text = (r.snippet?.runs ?? []).map((run: { text?: string }) => run.text ?? '').join('').trim();
-              if (!text) continue;
-              const timeStr = r.startTimeText?.simpleText ?? '0:00';
-              const parts = timeStr.split(':').map(Number);
-              const totalSec = parts.reduce((acc: number, p: number) => acc * 60 + p, 0);
-              const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-              const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-              const s = String(totalSec % 60).padStart(2, '0');
-              lines.push(`[${h}:${m}:${s}] ${text}`);
-            }
-            transcript = lines.join('\n');
-          } else {
-            console.log('[WebSideChat extract] get_transcript 响应结构异常:', gtRaw.slice(0, 200));
-          }
-        }
-      }
-    } catch (e) {
-      console.log('[WebSideChat extract] get_transcript 异常:', e);
-    }
-  }
-
-  if (!transcript.trim()) {
-    throw new ExtractError('字幕获取失败（播放器捕获与 get_transcript 均未取到），请确认字幕已在播放器中正常显示后重试');
+    throw new ExtractError('字幕获取失败（未能捕获播放器的字幕请求），请确认字幕已在播放器中正常显示后重试');
   }
 
   return {

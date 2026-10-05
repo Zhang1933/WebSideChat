@@ -15,7 +15,7 @@ export default defineContentScript({
     let width = DRAWER_WIDTH;
 
     const host = document.createElement('div');
-    host.id = 'webchat-drawer-host';
+    host.id = 'websidechat-drawer-host';
     host.style.cssText = 'all:initial;position:relative;z-index:2147483647;';
     const shadow = host.attachShadow({ mode: 'closed' });
 
@@ -25,7 +25,7 @@ export default defineContentScript({
         position: fixed;
         top: 0;
         right: 0;
-        width: var(--webchat-w, ${DRAWER_WIDTH}px);
+        width: var(--websidechat-w, ${DRAWER_WIDTH}px);
         height: 100vh;
         max-width: 100vw;
         z-index: 2147483647;
@@ -64,7 +64,7 @@ export default defineContentScript({
     shadow.appendChild(drawer);
 
     function applyWidth() {
-      drawer.style.setProperty('--webchat-w', `${width}px`);
+      drawer.style.setProperty('--websidechat-w', `${width}px`);
     }
 
     // 左缘拖拽调宽：实时预览，松手持久化；双击重置默认宽度
@@ -156,7 +156,7 @@ export default defineContentScript({
     window.addEventListener('message', (event) => {
       if (iframe && event.source !== iframe.contentWindow) return;
       const data = event.data as DrawerPostMessage | undefined;
-      if (data?.type === 'webchat-drawer' && data.action === 'close') {
+      if (data?.type === 'websidechat-drawer' && data.action === 'close') {
         void setOpen(false);
       }
     });

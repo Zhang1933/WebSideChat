@@ -44,6 +44,6 @@ export type DrawerMessage =
 
 /** iframe → content script 的 postMessage（跨上下文，不走 runtime） */
 export interface DrawerPostMessage {
-  type: 'webchat-drawer';
+  type: 'websidechat-drawer';
   action: 'close';
 }

@@ -22,7 +22,7 @@ function ensureOffscreen(): Promise<void> {
         });
       }
     } catch (err) {
-      console.error('[WebChat] create offscreen failed:', err);
+      console.error('[WebSideChat] create offscreen failed:', err);
     } finally {
       ensuring = null;
     }
@@ -39,7 +39,7 @@ export default defineBackground(() => {
   // 关键：sidePanel.open 必须在点击事件的同步段内调用，任何 await 都会丢用户手势。
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: false })
-    .catch((err) => console.error('[WebChat] setPanelBehavior failed:', err));
+    .catch((err) => console.error('[WebSideChat] setPanelBehavior failed:', err));
 
   browser.action.onClicked.addListener((tab) => {
     const tabId = tab.id;
@@ -53,7 +53,7 @@ export default defineBackground(() => {
     } else {
       // 同步调用保住手势
       void browser.sidePanel.open({ tabId }).catch((err) =>
-        console.error('[WebChat] open panel failed:', err),
+        console.error('[WebSideChat] open panel failed:', err),
       );
     }
   });

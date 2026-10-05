@@ -16,7 +16,7 @@ import {
 import { fetchModels } from '@/lib/llm/models';
 import { loginCodexOAuth } from '@/lib/oauth';
 import { cleanCodexToml, parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
-import { parseContextSuffix } from '@/lib/utils';
+import { parseContextInput, parseContextSuffix } from '@/lib/utils';
 import type { Provider, ProviderPreset } from '@/types';
 import { ConfigImport } from './ConfigImport';
 
@@ -261,6 +261,12 @@ export function ProviderForm({
         if (draft.apiKey || draft.baseUrl || draft.model || draft.apiFormat || draft.contextLimit) {
           applyDraftToForm(draft);
         }
+        // 上下文上限的人类写法兜底转换（未触发 onBlur 就提交的场景）
+        const rawLimit = getValues('contextLimit');
+        if (rawLimit) {
+          const n = parseContextInput(rawLimit);
+          if (n != null) setValue('contextLimit', String(n));
+        }
         void handleSubmit((values) => {
           if (!getValues('apiKey').trim()) {
             setError('apiKey', {
@@ -378,7 +384,12 @@ export function ProviderForm({
           <Label htmlFor="model">模型选择</Label>
           <button
             type="button"
-            onClick={() => void loadModels()}
+            onClick={() =>
+              void loadModels().then((ids) => {
+                // 手动填写场景：当前模型为空或预设默认值不在列表中 → 自动选中第一个
+                if (ids && !ids.includes(watch('model'))) setValue('model', ids[0]!);
+              })
+            }
             disabled={fetchingModels}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
@@ -419,12 +430,20 @@ export function ProviderForm({
         <Label htmlFor="contextLimit">上下文上限（token）</Label>
         <Input
           id="contextLimit"
-          type="number"
+          type="text"
           placeholder={`自动：${autoContextLimit.toLocaleString()}`}
           {...register('contextLimit')}
+          onBlur={(e) => {
+            // 人类写法自动转数字："1m" → 1000000，"128k" → 128000
+            const n = parseContextInput(e.target.value);
+            if (n != null) {
+              e.target.value = String(n);
+              setValue('contextLimit', String(n), { shouldValidate: true });
+            }
+          }}
         />
         <p className="text-[11px] text-muted-foreground">
-          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000
+          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 128,000；也可直接填 1m、128k
         </p>
         {errors.contextLimit && (
           <p className="text-xs text-destructive">{errors.contextLimit.message}</p>

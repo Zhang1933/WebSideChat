@@ -31,7 +31,7 @@ function waitForAsyncExtract(tabId: number, timeoutMs = 30_000): Promise<Extract
     }, timeoutMs);
     const listener = (msg: unknown, sender: { tab?: { id?: number } }) => {
       const m = msg as { type?: string; result?: ExtractResult } | null;
-      if (!m || m.type !== 'webchat-extract-result') return;
+      if (!m || m.type !== 'websidechat-extract-result') return;
       if (sender?.tab?.id !== tabId) return;
       cleanup();
       if (!m.result) {

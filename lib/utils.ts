@@ -95,3 +95,16 @@ export function truncateContent(text: string, maxChars: number): { text: string;
     truncated: true,
   };
 }
+
+/**
+ * 解析上下文上限输入的人类写法："1m" → 1,000,000，"128k" → 128,000，
+ * "2000000" 原样返回；无法解析返回 null。
+ */
+export function parseContextInput(text: string): number | null {
+  const m = text.trim().match(/^(\d+(?:\.\d+)?)([kKmM]?)$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const unit = (m[2] ?? '').toLowerCase();
+  return Math.round(unit === 'k' ? num * 1_000 : unit === 'm' ? num * 1_000_000 : num);
+}

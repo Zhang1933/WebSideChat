@@ -51,7 +51,7 @@ export default function App() {
   }, [drawerPinned]);
 
   const closeDrawer = useCallback(() => {
-    window.parent.postMessage({ type: 'webchat-drawer', action: 'close' }, '*');
+    window.parent.postMessage({ type: 'websidechat-drawer', action: 'close' }, '*');
   }, []);
 
   // ---- 配置（storage.watch 联动） ----

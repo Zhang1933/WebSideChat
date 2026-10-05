@@ -98,6 +98,25 @@ export function UnifiedChat({
         onScroll={handleListScroll}
         className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3"
       >
+        {showPreset && (
+          <div className="flex flex-col items-end gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={onPresetSummary}
+              disabled={disabled}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg disabled:opacity-50"
+            >
+              <Sparkles className="size-4" />
+              {isVideo ? '帮我总结视频内容' : '帮我总结网页内容'}
+            </button>
+            {extracting && (
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" /> 正在提取页面正文…
+              </p>
+            )}
+          </div>
+        )}
+
         {visibleMessages.map((m, i) => {
           // 压缩标记 → 提示行（不渲染为气泡）
           if (m.role === 'user' && m.content === CONTEXT_COMPRESSED_MARKER) {
@@ -138,26 +157,6 @@ export function UnifiedChat({
           </>
         )}
       </div>
-
-      {/* 空会话时：快捷总结气泡紧贴输入框上方，而不是远在消息区顶部 */}
-      {showPreset &&
-        (extracting ? (
-          <p className="flex items-center justify-center gap-1.5 px-3 pb-1.5 text-[11px] text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" /> 正在提取页面正文…
-          </p>
-        ) : (
-          <div className="flex justify-end px-3 pb-1.5">
-            <button
-              type="button"
-              onClick={onPresetSummary}
-              disabled={disabled}
-              className="inline-flex items-center gap-1.5 rounded-full border bg-secondary px-3.5 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-50"
-            >
-              <Sparkles className="size-3.5 text-primary" />
-              {isVideo ? '帮我总结视频内容' : '帮我总结网页内容'}
-            </button>
-          </div>
-        ))}
 
       {editingFrom != null && (
         <div className="flex items-center gap-1.5 border-t px-3 py-1 text-[11px] text-muted-foreground">

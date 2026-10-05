@@ -10,6 +10,7 @@ import {
   contentBudgetChars,
   effectiveContextLimit,
   pageKeyOf,
+  parseContextInput,
   parseContextSuffix,
   stripContextSuffix,
   truncateContent,
@@ -159,6 +160,24 @@ describe('parseContextSuffix / stripContextSuffix', () => {
     expect(stripContextSuffix('m[128k]')).toBe('m');
     expect(stripContextSuffix('m[beta]')).toBe('m[beta]');
     expect(stripContextSuffix('deepseek-chat')).toBe('deepseek-chat');
+  });
+});
+
+describe('parseContextInput', () => {
+  it('解析 1m/128k/纯数字/小数单位', () => {
+    expect(parseContextInput('1m')).toBe(1_000_000);
+    expect(parseContextInput('128k')).toBe(128_000);
+    expect(parseContextInput('1M')).toBe(1_000_000);
+    expect(parseContextInput('0.5m')).toBe(500_000);
+    expect(parseContextInput('2000000')).toBe(2_000_000);
+    expect(parseContextInput(' 64K ')).toBe(64_000);
+  });
+  it('无法解析返回 null', () => {
+    expect(parseContextInput('')).toBeNull();
+    expect(parseContextInput('abc')).toBeNull();
+    expect(parseContextInput('1x')).toBeNull();
+    expect(parseContextInput('-5')).toBeNull();
+    expect(parseContextInput('1m 2k')).toBeNull();
   });
 });
 

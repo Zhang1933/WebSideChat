@@ -183,11 +183,11 @@ export default defineContentScript({
     if (isYouTubeWatchUrl(location.href)) {
       void extractYouTube()
         .then((result) => {
-          void browser.runtime.sendMessage({ type: 'webchat-extract-result', result });
+          void browser.runtime.sendMessage({ type: 'websidechat-extract-result', result });
         })
         .catch(() => {
           void browser.runtime.sendMessage({
-            type: 'webchat-extract-result',
+            type: 'websidechat-extract-result',
             result: youtubeError('字幕提取失败'),
           });
         });

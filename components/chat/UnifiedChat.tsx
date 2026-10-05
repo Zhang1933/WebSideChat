@@ -138,6 +138,7 @@ export function UnifiedChat({
               <MessageBubble
                 message={m}
                 muted={isDigest}
+                isVideoPage={isVideo}
                 onEdit={
                   i === lastUserIndex && !streaming
                     ? () => startEdit(i, m.content)
@@ -150,7 +151,7 @@ export function UnifiedChat({
 
         {streaming && (
           <>
-            <MessageBubble message={{ role: 'assistant', content: streamText || '…' }} />
+            <MessageBubble message={{ role: 'assistant', content: streamText || '…' }} isVideoPage={isVideo} />
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
             </div>

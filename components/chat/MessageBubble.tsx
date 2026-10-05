@@ -13,11 +13,14 @@ export function MessageBubble({
   message,
   muted,
   onEdit,
+  isVideoPage = false,
 }: {
   message: ChatMessage;
   muted?: boolean;
   /** 传入时显示编辑按钮（点击回调由父组件处理） */
   onEdit?: () => void;
+  /** 当前是否在视频页（透传给 Markdown 做时间戳链接 seek） */
+  isVideoPage?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -42,7 +45,7 @@ export function MessageBubble({
             muted ? 'border border-dashed text-[13px] text-muted-foreground' : 'border',
           )}
         >
-          <Markdown text={message.content} />
+          <Markdown text={message.content} isVideoPage={isVideoPage} />
         </div>
       )}
 

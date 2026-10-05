@@ -4,81 +4,121 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  DEFAULT_SUMMARY_PROMPTS,
-  DEFAULT_SYSTEM_PROMPT,
+  DEFAULT_VIDEO_SUMMARY_PROMPTS,
+  DEFAULT_VIDEO_SYSTEM_PROMPT,
+  DEFAULT_WEB_SUMMARY_PROMPTS,
+  DEFAULT_WEB_SYSTEM_PROMPT,
 } from '@/lib/prompts';
 import { saveSettings, settingsItem } from '@/lib/storage';
 import type { AppSettings } from '@/types';
 
-/** 提示词设置：编辑系统提示词（角色设定）与摘要指令，留空/恢复 = 内置默认 */
+/** 提示词设置：分「网页」与「视频」两部分，各自可编辑系统提示词与摘要指令 */
 export function PromptSettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [summaryPrompt, setSummaryPrompt] = useState('');
+  const [webSystem, setWebSystem] = useState('');
+  const [webSummary, setWebSummary] = useState('');
+  const [videoSystem, setVideoSystem] = useState('');
+  const [videoSummary, setVideoSummary] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     settingsItem.getValue().then((s) => {
       setSettings(s);
-      setSystemPrompt(s.customSystemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT);
-      setSummaryPrompt(s.customSummaryPrompt?.trim() || DEFAULT_SUMMARY_PROMPTS[s.summaryLanguage]);
+      const lang = s.summaryLanguage;
+      setWebSystem(s.customWebSystemPrompt?.trim() || DEFAULT_WEB_SYSTEM_PROMPT);
+      setWebSummary(s.customWebSummaryPrompt?.trim() || DEFAULT_WEB_SUMMARY_PROMPTS[lang]);
+      setVideoSystem(s.customVideoSystemPrompt?.trim() || DEFAULT_VIDEO_SYSTEM_PROMPT);
+      setVideoSummary(s.customVideoSummaryPrompt?.trim() || DEFAULT_VIDEO_SUMMARY_PROMPTS[lang]);
     });
   }, []);
 
   async function save() {
+    const lang = settings?.summaryLanguage ?? 'zh';
     // 与内置默认相同就存空串（语义上"使用默认"，语言切换时跟随内置变化）
-    const sys = systemPrompt.trim() === DEFAULT_SYSTEM_PROMPT ? '' : systemPrompt;
-    const sum = summaryPrompt.trim() === DEFAULT_SUMMARY_PROMPTS[settings?.summaryLanguage ?? 'zh'] ? '' : summaryPrompt;
-    await saveSettings({ customSystemPrompt: sys, customSummaryPrompt: sum });
+    await saveSettings({
+      customWebSystemPrompt:
+        webSystem.trim() === DEFAULT_WEB_SYSTEM_PROMPT ? '' : webSystem,
+      customWebSummaryPrompt:
+        webSummary.trim() === DEFAULT_WEB_SUMMARY_PROMPTS[lang] ? '' : webSummary,
+      customVideoSystemPrompt:
+        videoSystem.trim() === DEFAULT_VIDEO_SYSTEM_PROMPT ? '' : videoSystem,
+      customVideoSummaryPrompt:
+        videoSummary.trim() === DEFAULT_VIDEO_SUMMARY_PROMPTS[lang] ? '' : videoSummary,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  return (
-    <div className="flex flex-col gap-6">
+  const section = (
+    label: string,
+    hint: string,
+    sysId: string,
+    sysValue: string,
+    sysDefault: string,
+    sysSetter: (v: string) => void,
+    sumId: string,
+    sumValue: string,
+    sumDefault: string,
+    sumSetter: (v: string) => void,
+  ) => (
+    <div className="rounded-lg border p-4">
+      <h3 className="mb-3 text-sm font-semibold">{label}</h3>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="systemPrompt">系统提示词（角色设定）</Label>
-        <p className="text-[11px] text-muted-foreground">
-          每次摘要与追问都会作为 system 提示发送，位于网页正文之前。修改会影响回答风格与约束。
-        </p>
+        <Label htmlFor={sysId}>系统提示词（角色设定）</Label>
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
         <Textarea
-          id="systemPrompt"
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          rows={5}
+          id={sysId}
+          value={sysValue}
+          onChange={(e) => sysSetter(e.target.value)}
+          rows={4}
           className="font-mono text-xs"
           spellCheck={false}
         />
         <button
           type="button"
           className="inline-flex w-fit items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-          onClick={() => setSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+          onClick={() => sysSetter(sysDefault)}
         >
           <RotateCcw className="size-3" /> 恢复默认
         </button>
       </div>
+      <div className="mt-4 flex flex-col gap-1.5">
+        <Label htmlFor={sumId}>摘要指令</Label>
+        <Textarea
+          id={sumId}
+          value={sumValue}
+          onChange={(e) => sumSetter(e.target.value)}
+          rows={7}
+          className="font-mono text-xs"
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="inline-flex w-fit items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+          onClick={() => sumSetter(sumDefault)}
+        >
+          <RotateCcw className="size-3" /> 恢复默认
+        </button>
+      </div>
+    </div>
+  );
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="summaryPrompt">摘要指令</Label>
-        <p className="text-[11px] text-muted-foreground">
-          生成摘要时发送的第一条指令，决定摘要的结构与格式。自定义后不再随「摘要语言」设置变化。
-        </p>
-        <Textarea
-          id="summaryPrompt"
-          value={summaryPrompt}
-          onChange={(e) => setSummaryPrompt(e.target.value)}
-          rows={8}
-          className="font-mono text-xs"
-          spellCheck={false}
-        />
-        <button
-          type="button"
-          className="inline-flex w-fit items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-          onClick={() => setSummaryPrompt(DEFAULT_SUMMARY_PROMPTS[settings?.summaryLanguage ?? 'zh'])}
-        >
-          <RotateCcw className="size-3" /> 恢复默认
-        </button>
-      </div>
+  return (
+    <div className="flex flex-col gap-4">
+      {section(
+        '📄 网页',
+        '普通网页摘要与追问时的角色设定，位于正文之前。',
+        'webSystem', webSystem, DEFAULT_WEB_SYSTEM_PROMPT, setWebSystem,
+        'webSummary', webSummary,
+        DEFAULT_WEB_SUMMARY_PROMPTS[settings?.summaryLanguage ?? 'zh'], setWebSummary,
+      )}
+      {section(
+        '▶️ 视频',
+        'YouTube 等视频页摘要与追问时的角色设定，位于字幕之前。字幕每行带 [时:分:秒] 时间戳。',
+        'videoSystem', videoSystem, DEFAULT_VIDEO_SYSTEM_PROMPT, setVideoSystem,
+        'videoSummary', videoSummary,
+        DEFAULT_VIDEO_SUMMARY_PROMPTS[settings?.summaryLanguage ?? 'zh'], setVideoSummary,
+      )}
 
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={() => void save()}>

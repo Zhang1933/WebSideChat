@@ -192,7 +192,7 @@ export default function App() {
         setExtracting(false);
         await runTurn(
           firstUserContent ? 'chat' : 'summary',
-          firstUserContent ?? summaryUserPrompt(settings),
+          firstUserContent ?? summaryUserPrompt(settings, !!tab.url && isYouTubeWatchUrl(tab.url)),
           conv,
         );
       } catch (err) {
@@ -219,7 +219,11 @@ export default function App() {
       if (!confirm('重新生成摘要将清空后续追问对话，继续？')) return;
     }
     const base = hasSummary(conversation) ? { ...conversation, messages: [] } : conversation;
-    void runTurn('summary', summaryUserPrompt(settings), base);
+    void runTurn(
+      'summary',
+      summaryUserPrompt(settings, !!tab.url && isYouTubeWatchUrl(tab.url)),
+      base,
+    );
   }, [conversation, settings, runTurn, extractAndSummarize]);
 
   const sendQuestion = useCallback(

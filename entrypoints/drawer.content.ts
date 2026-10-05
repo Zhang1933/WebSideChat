@@ -152,12 +152,19 @@ export default defineContentScript({
       }
     });
 
-    // 抽屉内应用的 postMessage（× 关闭）
+    // 抽屉内应用的 postMessage（× 关闭 / 视频时间戳 seek）
     window.addEventListener('message', (event) => {
       if (iframe && event.source !== iframe.contentWindow) return;
       const data = event.data as DrawerPostMessage | undefined;
       if (data?.type === 'websidechat-drawer' && data.action === 'close') {
         void setOpen(false);
+      }
+      if (data?.type === 'websidechat-drawer' && data.action === 'seek' && typeof data.seconds === 'number') {
+        const video = document.querySelector('video');
+        if (video) {
+          video.currentTime = data.seconds;
+          video.play().catch(() => {});
+        }
       }
     });
 

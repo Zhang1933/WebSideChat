@@ -83,10 +83,14 @@ export interface AppSettings {
   summaryLanguage: 'zh' | 'en' | 'auto';
   /** 显示提取的 Web 内容：顶栏"已提取 N 字符"可点击查看实际送入模型的正文（默认开） */
   debugMode?: boolean;
-  /** 自定义系统提示词（角色设定）；空/未设置 = 使用内置默认 */
-  customSystemPrompt?: string;
-  /** 自定义摘要指令；空/未设置 = 按 summaryLanguage 使用内置默认 */
-  customSummaryPrompt?: string;
+  /** 网页场景自定义系统提示词；空 = 内置默认 */
+  customWebSystemPrompt?: string;
+  /** 网页场景自定义摘要指令；空 = 按语言取内置默认 */
+  customWebSummaryPrompt?: string;
+  /** 视频场景自定义系统提示词；空 = 内置默认 */
+  customVideoSystemPrompt?: string;
+  /** 视频场景自定义摘要指令；空 = 按语言取内置默认 */
+  customVideoSummaryPrompt?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

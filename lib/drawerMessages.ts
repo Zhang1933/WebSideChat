@@ -43,5 +43,7 @@ export type DrawerMessage =
 /** iframe → content script 的 postMessage（跨上下文，不走 runtime） */
 export interface DrawerPostMessage {
   type: 'websidechat-drawer';
-  action: 'close';
+  action: 'close' | 'seek';
+  /** seek 时为秒数 */
+  seconds?: number;
 }

@@ -1,10 +1,12 @@
 # WebSideChat，用你喜欢的AI与网页对话。
 
-WebSideChat，浏览器扩展，一键提取网页、视频内容，利用AI让网页活起来，与网页对话。
 
-WebSideChat，利用AI帮你总结网页、视频内容，快速获取知识并免去广告。
 
-WebSideChat，利用AI知识回答你网页上、视频中小小的疑问。
+WebSideChat，浏览器扩展，一键提取网页、视频内容，利用AI与网页对话。
+
+WebSideChat，帮你总结网页、视频内容，快速获取知识并免去广告。
+
+WebSideChat，回答你网页上、视频中小小的疑问。
 
 ## 功能
 

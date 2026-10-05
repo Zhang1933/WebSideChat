@@ -44,6 +44,13 @@ browser.runtime.onMessage.addListener((msg: TurnMessage) => {
 async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>) {
   const { streamId, pageKey, provider, settings, conversation: base, userContent, target } = msg;
 
+  console.log('[WebSideChat offscreen] turn:start 收到', {
+    pageKey,
+    target,
+    provider: provider.name,
+    model: provider.model,
+  });
+
   // 同页只保留一条流：中止旧流
   controllers.get(pageKey)?.abort();
   const ac = new AbortController();
@@ -97,7 +104,8 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
 
     let acc = '';
     console.log('[WebSideChat offscreen] streamChat 开始', {
-      url: `${provider.baseUrl}/responses`,
+      apiFormat: provider.apiFormat,
+      baseUrl: provider.baseUrl,
       model: provider.model,
       hasKey: !!provider.apiKey,
       hasAccountId: !!provider.accountId,
@@ -112,6 +120,7 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
           emit({ type: 'turn:delta', streamId, pageKey, full });
         },
         onDone: (full) => {
+          console.log('[WebSideChat offscreen] 流完成', { len: full.length });
           const fin = withMessage(convNow, { role: 'assistant', content: full });
           emit({ type: 'turn:done', streamId, pageKey, conversation: fin });
         },
@@ -147,6 +156,21 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
         signal: ac.signal,
       },
     );
+  } catch (err) {
+    // 引擎内部异常（拼装/压缩阶段抛错）没有 catch 的话是未捕获 rejection：
+    // 面板会永远转圈、任何 turn:error 都不发——必须兜住并回报
+    console.error('[WebSideChat offscreen] 回合内部异常:', err);
+    const fin = withMessage(
+      withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage),
+      { role: 'assistant', content: '*（回合引擎内部错误，请重试）*' },
+    );
+    emit({
+      type: 'turn:error',
+      streamId,
+      pageKey,
+      error: `回合引擎内部错误：${err instanceof Error ? err.message : String(err)}`,
+      conversation: fin,
+    });
   } finally {
     controllers.delete(pageKey);
     activePages.delete(pageKey);

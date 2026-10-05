@@ -7,7 +7,6 @@ import { UnifiedChat } from '@/components/chat/UnifiedChat';
 import { hasSummary, visibleStartIndex, withMessage } from '@/lib/conversation';
 import { conversationFromExtract, extractCurrentPage, ExtractError } from '@/lib/extract';
 import { drawerPinnedItem, type DrawerMessage } from '@/lib/drawerMessages';
-import { gestureTabUrlsItem } from '@/lib/gestureTabs';
 import { ALL_URLS_PATTERN, getOriginPattern, requestHostPermission } from '@/lib/permissions';
 import { openProviderManager } from '@/lib/openOptions';
 import { summaryUserPrompt } from '@/lib/prompts';
@@ -56,28 +55,6 @@ export default function App() {
     window.parent.postMessage({ type: 'websidechat-drawer', action: 'close' }, '*');
   }, []);
 
-  // ---- 原生侧边栏授权兜底：未经手势打开（非工具栏图标入口）时 tab.url 不可见 ----
-  // 从 background 记录的手势 URL（session）推算 origin，供「授权本站」按钮申请。
-  // 仅当确知该页可授权（曾有手势且为 http/https）才显示横幅——
-  // chrome://extensions/ 等浏览器页面授权也无用，不提示
-  const [gestureUrl, setGestureUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (IN_DRAWER || tab.url || tab.id == null) {
-      setGestureUrl(null);
-      return;
-    }
-    void gestureTabUrlsItem.getValue().then((m) => setGestureUrl(m[String(tab.id)] ?? null));
-  }, [tab.id, tab.url]);
-  const gestureHost = (() => {
-    try {
-      return gestureUrl ? new URL(gestureUrl).hostname : null;
-    } catch {
-      return null;
-    }
-  })();
-  /** 横幅只在手势记录是 http/https 页（授权能解决）时出现 */
-  const showAuthBanner = gestureUrl != null && getOriginPattern(gestureUrl) != null;
-
   // ---- 配置（storage.watch 联动） ----
   const [providers, setProviders] = useState<Record<string, Provider>>({});
   const [currentProviderId, setCurrentProviderId] = useState<string | null>(null);
@@ -106,6 +83,13 @@ export default function App() {
   /** 按 pageKey 隔离的进行中流（值为已生成的流式文本）：多个标签页可并行独立生成 */
   const [streamTexts, setStreamTexts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  /** 提取遇注入权限缺失时待授权的站点（授权按钮点击手势内申请，成功自动重试提取） */
+  const [needsPermission, setNeedsPermission] = useState<{ host: string; pattern: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    setNeedsPermission(null);
+  }, [tab.url]);
   /** 调试模式：查看提取内容弹窗 */
   const [contentViewerOpen, setContentViewerOpen] = useState(false);
   const pageKeyRef = useRef<string | null>(pageKey);
@@ -137,12 +121,17 @@ export default function App() {
             : prev,
         );
       } else if (msg.type === 'turn:done' || msg.type === 'turn:error') {
+        console.log('[WebSideChat] 回合结束:', { type: msg.type, pageKey: msg.pageKey, error: msg.type === 'turn:error' ? msg.error : undefined });
         setStreamTexts((prev) => {
           if (!(msg.pageKey in prev)) return prev;
           const next = { ...prev };
           delete next[msg.pageKey];
           return next;
         });
+        if (msg.type === 'turn:error' && msg.error) {
+          // offscreen 里 LLM 请求失败的诊断日志（offscreen 自身的 console 页面里看不到）
+          console.warn('[WebSideChat] 生成失败:', msg.error);
+        }
         if (msg.pageKey === pageKeyRef.current) {
           setConversation(msg.conversation);
           if (msg.type === 'turn:error' && msg.error) setError(msg.error);
@@ -172,6 +161,7 @@ export default function App() {
       if (base.pageKey === pageKeyRef.current) setError(null);
 
       try {
+        console.log('[WebSideChat] 发起回合:', { target, pageKey: base.pageKey, provider: p.name, model: p.model });
         await ensureOffscreenReady();
         // 带回执重试：offscreen 文档可能刚创建、脚本尚未注册监听（消息会丢失）
         const start: TurnMessage = {
@@ -185,11 +175,20 @@ export default function App() {
           target,
         };
         let acked = false;
-        for (let i = 0; i < 6 && !acked; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 250));
+        // 首次使用需从零创建 offscreen（建文档→加载 HTML→解析模块→注册监听），
+        // 冷启动可能超过 1 秒：重试预算 6 秒（20 × 300ms），未应答时留诊断日志
+        for (let i = 0; i < 20 && !acked; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 300));
           acked = (await browser.runtime.sendMessage(start)) === true;
+          if (!acked && i > 0 && i % 5 === 0) {
+            console.warn(`[WebSideChat] turn:start 第 ${i} 次未应答，offscreen 仍在启动…`);
+          }
         }
-        if (!acked) throw new Error('生成引擎未就绪（offscreen 无应答），请重试');
+        if (!acked) {
+          console.error('[WebSideChat] turn:start 20 次均未应答，offscreen 启动失败');
+          throw new Error('生成引擎未就绪（offscreen 无应答），请重试');
+        }
+        console.log('[WebSideChat] 回合已被引擎接收，等待流式输出…');
       } catch (err) {
         setStreamTexts((prev) => {
           const next = { ...prev };
@@ -230,6 +229,21 @@ export default function App() {
         );
       } catch (err) {
         setExtracting(false);
+        // 注入权限缺失：tabs 权限下 tab.url 可见 → 直接给出站内一键授权（而非仅文字提示）
+        if (err instanceof ExtractError && tab.url) {
+          const pattern = getOriginPattern(tab.url);
+          let host: string | null = null;
+          try {
+            host = new URL(tab.url).hostname;
+          } catch {
+            /* ignore */
+          }
+          if (pattern && host && /无法访问此页面|没有注入权限/.test(err.message)) {
+            setError(null);
+            setNeedsPermission({ host, pattern });
+            return;
+          }
+        }
         setError(err instanceof ExtractError ? err.message : `提取失败：${String(err)}`);
       }
     },
@@ -327,26 +341,30 @@ export default function App() {
         </div>
       )}
 
-      {/* 原生侧边栏未经手势打开且该页可授权：引导补权限；chrome:// 等页面不显示 */}
-      {!IN_DRAWER && tab.id != null && !tab.url && showAuthBanner && (
+      {/* 提取遇注入权限缺失：一键授权本站（永久）并自动重试 */}
+      {needsPermission && (
         <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px]">
           <ShieldQuestion className="mt-0.5 size-3 shrink-0 text-amber-600" />
           <div className="flex-1">
-            <p className="font-medium text-amber-800 dark:text-amber-300">需要授权读取当前页面</p>
+            <p className="font-medium text-amber-800 dark:text-amber-300">
+              需要授权访问 {needsPermission.host}
+            </p>
             <p className="mt-0.5 text-muted-foreground">
-              点一次上方工具栏的扩展图标即可；或为本站单独授权（之后永久生效）：
+              点一次上方工具栏的扩展图标也可临时授权（当前标签页有效）；或为本站永久授权：
             </p>
             <button
               className="mt-1.5 rounded-full bg-amber-600 px-3 py-1 text-white transition-colors hover:bg-amber-700"
               onClick={() =>
                 void (async () => {
-                  // 授权成功后 permissions.onAdded 触发 useActiveTab 刷新，tab.url 即刻可见
-                  const pattern = getOriginPattern(gestureUrl ?? '');
-                  if (pattern) await requestHostPermission(pattern);
+                  const granted = await requestHostPermission(needsPermission.pattern);
+                  if (granted) {
+                    setNeedsPermission(null);
+                    void extractAndSummarize();
+                  }
                 })()
               }
             >
-              授权本站（{gestureHost}）
+              授权本站（{needsPermission.host}）
             </button>
           </div>
         </div>

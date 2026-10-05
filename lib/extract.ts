@@ -13,11 +13,11 @@ function friendlyError(err: unknown): ExtractError {
   const msg = err instanceof Error ? err.message : String(err);
   if (/cannot access|cannot access contents of the page/i.test(msg)) {
     return new ExtractError(
-      '无法访问此页面：浏览器内置页面 / 商店页不支持提取；若为普通网页，请点一次工具栏的扩展图标或用面板内「授权本站」补权限后重试',
+      '无法访问此页面：可能是缺少本站注入权限（面板内可一键授权），或为浏览器内置页面 / 商店页',
     );
   }
   if (/manifest.*permission|permission.*manifest/i.test(msg)) {
-    return new ExtractError('没有注入权限，请点一次工具栏的扩展图标或用面板内「授权本站」补权限');
+    return new ExtractError('没有注入权限：请点一次工具栏的扩展图标，或在面板内授权本站');
   }
   return new ExtractError(`页面提取失败：${msg}`);
 }

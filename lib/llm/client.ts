@@ -35,14 +35,34 @@ function mapHttpError(status: number, body: string): LlmError {
 }
 
 /**
- * 流式对话。在 Side Panel 页面上下文直接调用（扩展页面对 host_permissions
- * 域可跨域），SSE 手动解析（EventSource 无法携带鉴权头）。
+ * 流式对话。在扩展页面上下文直接调用（host_permissions 域可跨域），
+ * SSE 手动解析（EventSource 无法携带鉴权头）。
+ * 防御：服务端偶发返回 HTTP 200 但全程无内容（GLM 等兼容端点出现过）→
+ * 明确报错提示用户手动重试，而不是静默生成一条看不见的空消息。
  */
 export async function streamChat(
   provider: Provider,
   req: LlmStreamRequest,
   handlers: StreamHandlers,
 ): Promise<void> {
+  const r = await streamOnce(provider, req, handlers);
+  if (r.status === 'ok') {
+    handlers.onDone(r.full);
+  } else if (r.status === 'empty') {
+    handlers.onError({
+      kind: 'parse',
+      message: '模型返回了空内容（HTTP 200 但没有任何输出），可能是服务端偶发问题，请重试',
+    });
+  }
+  // 'handled'：错误/中止的终端回调已在 streamOnce 内发出
+}
+
+/** 单次流式请求；'empty'（200 但零内容）时不发终端回调，由上层决定重试 */
+async function streamOnce(
+  provider: Provider,
+  req: LlmStreamRequest,
+  handlers: StreamHandlers,
+): Promise<{ status: 'ok'; full: string } | { status: 'empty' } | { status: 'handled' }> {
   const adapter = adapterFor(provider);
   const { url, headers, body } = adapter.buildRequest(provider, req);
 
@@ -63,13 +83,13 @@ export async function streamChat(
         message: `网络错误：${(err as Error).message}。若连接本机 Ollama，请设置环境变量 OLLAMA_ORIGINS=chrome-extension://* 后重启 Ollama`,
       });
     }
-    return;
+    return { status: 'handled' };
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     handlers.onError(mapHttpError(res.status, text));
-    return;
+    return { status: 'handled' };
   }
 
   const contentType = res.headers.get('content-type') ?? '';
@@ -94,42 +114,44 @@ export async function streamChat(
           kind: 'parse',
           message: `无法从响应中提取文本（content-type: ${contentType}，body: ${rawBody.slice(0, 150)}）`,
         });
-        return;
+        return { status: 'handled' };
       }
       handlers.onDelta(full, full);
-      handlers.onDone(full);
+      return full.trim() ? { status: 'ok', full } : { status: 'empty' };
     } catch {
       handlers.onError({
         kind: 'parse',
         message: `响应解析失败（HTTP ${res.status}，content-type: ${contentType}，body: ${rawBody.slice(0, 150) || '(空)'}）`,
       });
+      return { status: 'handled' };
     }
-    return;
   }
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   const parser = new SseParser();
   let full = '';
+  /** 原始 SSE 事件采样（空流时输出，用于定位服务端行为） */
+  const samples: string[] = [];
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       for (const ev of parser.feed(decoder.decode(value, { stream: true }))) {
+        if (samples.length < 10) samples.push(`${ev.event ?? 'message'}: ${ev.data.slice(0, 120)}`);
         const r = adapter.extractDelta(ev);
         if (!r) continue;
         if (r.error) {
           handlers.onError(r.error);
-          return;
+          return { status: 'handled' };
         }
         if (r.text) {
           full += r.text;
           handlers.onDelta(full, r.text);
         }
         if (r.done) {
-          handlers.onDone(full);
-          return;
+          return full.trim() ? { status: 'ok', full } : { status: 'empty' };
         }
       }
     }
@@ -141,13 +163,18 @@ export async function streamChat(
         handlers.onDelta(full, r.text);
       }
     }
-    handlers.onDone(full);
+    if (!full.trim()) {
+      console.warn('[WebSideChat] 空流诊断', { status: res.status, contentType, samples });
+      return { status: 'empty' };
+    }
+    return { status: 'ok', full };
   } catch (err) {
     if (isAbort(err)) {
       handlers.onError({ kind: 'aborted', message: '已停止生成' });
     } else {
       handlers.onError({ kind: 'network', message: `流式传输中断：${(err as Error).message}` });
     }
+    return { status: 'handled' };
   }
 }
 

@@ -1,4 +1,4 @@
-import { DRAWER_WIDTH, drawerWidthItem, type DrawerMessage, type DrawerPostMessage } from '@/lib/drawerMessages';
+import { DRAWER_WIDTH, drawerOpenItem, drawerWidthItem, type DrawerMessage, type DrawerPostMessage } from '@/lib/drawerMessages';
 
 /**
  * 标签独立抽屉：在每个普通网页注入 shadow DOM 宿主 + iframe（承载 sidepanel 应用）。
@@ -13,6 +13,26 @@ export default defineContentScript({
     let open = false;
     let iframe: HTMLIFrameElement | null = null;
     let width = DRAWER_WIDTH;
+    let myTabId: number | null = null;
+
+    // 获取本 tab 的 tabId（用于 watch 本 tab 的抽屉状态存储项）
+    function getTabIdSync(): number {
+      return myTabId ?? 0;
+    }
+
+    // content script 无法直接拿到自己的 tabId，通过 drawer:hello 的响应获取
+    void browser.runtime
+      .sendMessage({ type: 'drawer:hello' })
+      .then((id) => {
+        if (typeof id === 'number') {
+          myTabId = id;
+          // 拿到 tabId 后 watch 本 tab 的状态
+          void drawerOpenItem(myTabId).watch((stored) => {
+            if (stored !== open) void setOpen(stored, false);
+          });
+        }
+      })
+      .catch(() => {});
 
     const host = document.createElement('div');
     host.id = 'websidechat-drawer-host';
@@ -133,17 +153,18 @@ export default defineContentScript({
       }
     }
 
-    // 初始状态：本 tab 的持久状态（导航恢复 / pin 自动展开已在 background 写入）
+    // 初始状态 + 持续同步：watch 本 tab 的存储项，
+    // 无论状态从哪里变（本页切换/后台写入/storage 直改），都实时纠正本地开关
     void browser.runtime
       .sendMessage({ type: 'drawer:get-state' } satisfies DrawerMessage)
       .then((state) => {
         const s = state as { open?: boolean } | undefined;
-        if (s?.open) void setOpen(true, false);
+        // 显式处理两种状态：open=true → 展开；open=false → 确保收起（纠正可能的竞态残留）
+        void setOpen(s?.open === true, false);
       })
-      .catch(() => {});
-
-    // 注册本 tab 存在抽屉脚本（background 据此决定图标点击走抽屉还是原生面板）
-    void browser.runtime.sendMessage({ type: 'drawer:hello' }).catch(() => {});
+      .catch(() => {
+        void setOpen(false, false); // 通信失败 → 默认关闭
+      });
 
     // 工具栏图标点击（background 转发）
     browser.runtime.onMessage.addListener((msg: DrawerMessage) => {

@@ -63,6 +63,8 @@ export default defineBackground(() => {
     if (msg?.type === 'drawer:hello') {
       const tabId = sender.tab?.id;
       if (tabId != null) drawerTabs.add(tabId);
+      // 返回 tabId：content script 用它 watch 本 tab 的抽屉状态存储项
+      return Promise.resolve(tabId);
     } else if (msg?.type === 'drawer:get-state') {
       const tabId = sender.tab?.id;
       if (tabId == null) return Promise.resolve({ open: false });

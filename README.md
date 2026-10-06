@@ -5,7 +5,7 @@
 WebSideChat
 </h1>
 
-WebSideChat，一个简单的浏览器扩展，一键提取网页、视频内容，用你喜欢的AI与网页对话。。
+WebSideChat，一个简单的浏览器扩展，一键提取网页、视频内容，用你喜欢的AI与网页对话。
 
 WebSideChat，帮你总结网页、视频内容，快速获取知识并免去广告。
 
@@ -13,7 +13,7 @@ WebSideChat，回答你网页上、视频中小小的疑问。
 
 ## 功能
 
-- **简单配置**：兼容Claude Code、Codex、OpenCode等工具配置。一份配置、多处使用，支持DeepSeek， 智谱等多供应商。
+- **简单配置**：兼容Claude Code、Codex、OpenCode等工具配置。一份配置、多处使用，支持DeepSeek， 智谱等多供应商与AI中转站。
 - **视频Chat**：支持 YouTube 与 B站视频，快速提炼视频要点，免看广告，直接针对视频内容进行提问。
 - **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
 - **提示词自定义**：可编辑内容摘要指令，支持恢复内置默认
@@ -39,11 +39,6 @@ npm run compile    # tsc 类型检查
 npm run build      # 产物 .output/chrome-mv3/
 npm run zip        # 打包 .output/*.zip（可上架/分发）
 ```
-
-## TODO:
-
-1. 兼容grok cli、gemini cli配置文件
-2. 支持Edge、firefox浏览器
 
 ## 许可证
 

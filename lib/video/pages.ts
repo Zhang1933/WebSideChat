@@ -11,7 +11,7 @@ export function videoSiteOf(url?: string | null): VideoSite | null {
   return null;
 }
 
-/** 是否为视频页（YouTube watch/shorts 或 B 站 /video/） */
+/** 是否为视频页（YouTube watch 或 B 站 /video/） */
 export function isVideoPageUrl(url?: string | null): boolean {
   return videoSiteOf(url) != null;
 }

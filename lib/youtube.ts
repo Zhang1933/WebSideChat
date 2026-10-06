@@ -14,24 +14,23 @@ export interface TracklistRenderer {
   audioTracks?: { defaultCaptionTrackIndex?: number; captionTrackIndices?: number[] }[];
 }
 
-/** 是否为 YouTube 观看页（watch / shorts；m.youtube.com 也算） */
+/** 是否为 YouTube 观看页（仅 watch；shorts 短视频不支持总结，走普通网页提取） */
 export function isYouTubeWatchUrl(url: string): boolean {
   try {
     const u = new URL(url);
     if (!/(^|\.)youtube\.com$/.test(u.hostname.toLowerCase())) return false;
-    return u.pathname === '/watch' || u.pathname.startsWith('/shorts/');
+    return u.pathname === '/watch';
   } catch {
     return false;
   }
 }
 
-/** 从 URL 提取 11 位视频 ID（watch?v= 或 /shorts/） */
+/** 从 URL 提取 11 位视频 ID（watch?v=） */
 export function extractVideoId(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.pathname === '/watch') return u.searchParams.get('v');
-    const shorts = u.pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{6,})/);
-    return shorts?.[1] ?? null;
+    return null;
   } catch {
     return null;
   }

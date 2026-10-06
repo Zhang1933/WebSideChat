@@ -8,10 +8,10 @@ import {
 } from '@/lib/youtube';
 
 describe('isYouTubeWatchUrl', () => {
-  it('识别 watch / shorts / 移动端域名', () => {
+  it('识别 watch 与移动端域名；shorts 短视频不支持', () => {
     expect(isYouTubeWatchUrl('https://www.youtube.com/watch?v=abc')).toBe(true);
     expect(isYouTubeWatchUrl('https://m.youtube.com/watch?v=abc&t=10')).toBe(true);
-    expect(isYouTubeWatchUrl('https://www.youtube.com/shorts/xyz')).toBe(true);
+    expect(isYouTubeWatchUrl('https://www.youtube.com/shorts/xyz')).toBe(false);
   });
   it('非观看页与其他域名不识别', () => {
     expect(isYouTubeWatchUrl('https://www.youtube.com/')).toBe(false);
@@ -22,9 +22,8 @@ describe('isYouTubeWatchUrl', () => {
 });
 
 describe('extractVideoId', () => {
-  it('从 watch / shorts URL 提取视频 ID', () => {
+  it('从 watch URL 提取视频 ID', () => {
     expect(extractVideoId('https://www.youtube.com/watch?v=izLekqHEYsE&t=5')).toBe('izLekqHEYsE');
-    expect(extractVideoId('https://youtube.com/shorts/abc123XYZ_-')).toBe('abc123XYZ_-');
   });
   it('非视频页返回 null', () => {
     expect(extractVideoId('https://www.youtube.com/')).toBeNull();

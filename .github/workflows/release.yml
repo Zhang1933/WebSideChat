@@ -61,14 +61,3 @@ jobs:
           name: WebSideChat ${{ github.ref_name }}
           generate_release_notes: true # 自动按 commit 生成更新说明
           files: .output/websidechat-${{ github.ref_name }}-chrome.zip
-
-      # 版本号回写仓库（放最后：回写失败不影响发布）。
-      # checkout 检出 tag 是 detached HEAD，必须显式推到 main
-      - name: 回写版本号到 main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: bump version to ${GITHUB_REF_NAME} [skip ci]"
-          git push origin HEAD:main

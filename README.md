@@ -1,47 +1,64 @@
-<h1 align="center">
-<sub>
-<img src="https://github.com/Zhang1933/WebSideChat/blob/main/assets/icon.svg" height="128" width="128">
-</sub>
-WebSideChat
-</h1>
+<div align="center">
 
-WebSideChat，一个简单的浏览器扩展，一键提取网页、视频内容，用你喜欢的AI与网页对话。
+<sub><img src="https://github.com/Zhang1933/WebSideChat/blob/main/assets/icon.svg" height="128" width="128"></sub>
 
-WebSideChat，帮你总结网页、视频内容，快速获取知识并免去广告。
+# WebSideChat
 
-WebSideChat，回答你网页上、视频中小小的疑问。
+### Chat with any web page and any video — using the AI you love
 
-## 功能
+**Extract page / video content in one click, get the summary, ask away — no ads, straight to the knowledge.**
 
-- **简单配置**：兼容Claude Code、Codex、OpenCode等工具配置。一份配置、多处使用，支持DeepSeek， 智谱等多供应商与AI中转站。
-- **视频Chat**：支持 YouTube 与 B站视频，快速提炼视频要点，免看广告，直接针对视频内容进行提问。
-- **多轮追问**：网页正文作为常驻上下文，针对本页内容连续提问
-- **提示词自定义**：可编辑内容摘要指令，支持恢复内置默认
-- **多标签页并行**：每个标签页是独立会话与独立流，可同时在多个标签页对话，互不打扰。
+English | [简体中文](README_ZH.md)
 
-## 手动安装
+**[Features](#features) · [Manual Installation](#manual-installation) · [Configuration](#configuration) · [Development](#development)**
 
-1. 从 [Releases](https://github.com/Zhang1933/WebSideChat/releases) 页面下载最新版的 `websidechat-vX.Y.Z-chrome.zip`
-2. 解压 zip 到任意文件夹
-3. Chrome 打开 `chrome://extensions` → 打开右上角"开发者模式" → "加载已解压的扩展程序" → 选择**解压后的文件夹**
+</div>
 
-## 插件配置
+WebSideChat is a lightweight browser extension: extract the content of any web page or video in one click, then chat with it using your favorite AI.
 
-安装好后，点击插件图标，打开插件侧边栏，按照引导添加AI供应商即可，就像在配置 [cc-switch](https://github.com/farion1231/cc-switch) 或各种agent工具一样。
+WebSideChat summarizes pages and videos, so you get the knowledge fast and skip the ads.
 
-## 开发
+WebSideChat answers the small questions you have about the page — or the video — you're reading.
+
+## Features
+
+- **Easy setup** — Compatible with Claude Code, Codex, and OpenCode configs. One config, used everywhere; supports DeepSeek, Zhipu and many more providers & AI relays.
+- **Video Chat** — Works with YouTube and Bilibili: extract key points fast, skip the ads, and ask questions about the video content.
+- **Follow-up questions** — Page content stays as persistent context, so you can keep asking about the page.
+- **Custom prompts** — Edit the summary instructions; restore the built-in defaults anytime.
+- **Parallel tabs** — Each tab is an independent session and stream: chat in multiple tabs without interference.
+- **Bilingual UI** — Chinese & English, following your browser language by default (switchable in settings); summary output language is configured separately.
+
+## Screenshots
+
+| YouTube | Bilibili | Web Page |
+| :---: | :---: | :---: |
+| <img src="docs/en-youtube-preview.png" width="320" alt="YouTube video summary"> | <img src="docs/en-bilibili-preview.png" width="320" alt="Bilibili video summary"> | <img src="docs/en-web-preview.png" width="320" alt="Web page summary"> |
+
+
+## Manual Installation
+
+1. Download the latest `websidechat-vX.Y.Z-chrome.zip` from the [Releases](https://github.com/Zhang1933/WebSideChat/releases) page
+2. Unzip it to any folder (keep the folder — don't delete it)
+3. Open `chrome://extensions` in Chrome → enable **Developer mode** (top right) → **Load unpacked** → select the **unzipped folder**
+
+## Configuration
+
+After installing, click the extension icon to open the sidebar and follow the guide to add an AI provider — just like configuring [cc-switch](https://github.com/farion1231/cc-switch) or any agent tool.
+
+## Development
 
 ```bash
 npm install
-npm run dev        # 起 WXT dev server，自动打开 Chrome 加载扩展
-npm test           # vitest 单测（SSE 解析、会话 LRU、URL 规范化）
-npm run compile    # tsc 类型检查
-npm run build      # 产物 .output/chrome-mv3/
-npm run zip        # 打包 .output/*.zip（可上架/分发）
+npm run dev        # WXT dev server; opens Chrome with the extension loaded
+npm test           # vitest unit tests (SSE parsing, conversation LRU, URL normalization)
+npm run compile    # tsc type check
+npm run build      # builds to .output/chrome-mv3/
+npm run zip        # packages .output/*.zip (for distribution)
 ```
 
-## 许可证
+## License
 
 [CC BY-NC 4.0](./LICENSE) © Zhang1933
 
-本项目采用 [Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/) 协议：允许自由使用、修改与分发（需署名），**禁止任何商业用途**。
+This project is licensed under [Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/): free to use, modify and share with attribution — **commercial use is prohibited**.

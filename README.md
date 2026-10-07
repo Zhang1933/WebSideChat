@@ -4,13 +4,13 @@
 
 # WebSideChat
 
-### Chat with any web page and any video — using the AI you love
+### Chat with any web page or video — powered by the AI you love.
 
-**Extract page / video content in one click, get the summary, ask away — no ads, straight to the knowledge.**
+**Extract, summarize, and ask anything in one click — zero ads, pure insight.**
 
 English | [简体中文](README_ZH.md)
 
-**[Features](#features) · [Manual Installation](#manual-installation) · [Configuration](#configuration) · [Development](#development)**
+**[Features](#features) · [Screenshots](#screenshots) · [Manual Installation](#manual-installation) · [Plugin Configuration](#plugin-configuration) · [Development](#development)**
 
 </div>
 
@@ -42,7 +42,7 @@ WebSideChat answers the small questions you have about the page — or the video
 2. Unzip it to any folder (keep the folder — don't delete it)
 3. Open `chrome://extensions` in Chrome → enable **Developer mode** (top right) → **Load unpacked** → select the **unzipped folder**
 
-## Configuration
+## Plugin Configuration
 
 After installing, click the extension icon to open the sidebar and follow the guide to add an AI provider — just like configuring [cc-switch](https://github.com/farion1231/cc-switch) or any agent tool.
 

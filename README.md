@@ -22,7 +22,7 @@ WebSideChat answers questions about whatever you're reading or watching.
 
 ## Features
 
-- **Simple Subscription & Setup** — One subscription and config, usable everywhere. Fully compatible with configuration setups from Claude Code, Codex, and OpenCode, with support for multiple providers like DeepSeek and Zhipu AI, as well as LLM API proxies.
+- **Subscription Reuse** — Subscribe once, use everywhere. Seamlessly compatible with setups from Claude Code, Codex, and OpenCode, with full support for DeepSeek, Zhipu AI, and various LLM proxy coding plans.
 - **Video Chat** — Chat directly with YouTube and Bilibili videos. Grab key takeaways instantly, skip the fluff and ads, and dig into specific parts without watching the whole thing.
 - **Follow-up questions** — Page content stays as persistent context, so you can keep asking about the page.
 - **Custom prompts** — Fully editable summary prompts with a fallback to built-in defaults at any time.

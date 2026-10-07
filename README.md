@@ -18,7 +18,7 @@ WebSideChat is a lightweight browser extension: extract the content of any web p
 
 WebSideChat summarizes pages and videos, so you get the knowledge fast and skip the ads.
 
-WebSideChat answers the small questions you have about the page — or the video — you're reading.
+WebSideChat answers questions about whatever you're reading or watching.
 
 ## Features
 

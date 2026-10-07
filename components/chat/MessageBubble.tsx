@@ -1,6 +1,7 @@
 import { Check, Copy, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { Markdown } from '@/components/Markdown';
+import { useT } from '@/lib/i18n';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { expandTimestampLinks } from '@/lib/video/pages';
 import type { ChatMessage } from '@/types';
@@ -23,6 +24,7 @@ export function MessageBubble({
   /** 当前会话的视频页 URL（透传给 Markdown 做占位展开与 seek） */
   videoUrl?: string | null;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -62,7 +64,7 @@ export function MessageBubble({
         {onEdit && (
           <button
             type="button"
-            title="编辑并重新发送"
+            title={t('bubble.editTitle')}
             onClick={onEdit}
             className="rounded p-1 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
           >
@@ -71,7 +73,7 @@ export function MessageBubble({
         )}
         <button
           type="button"
-          title="复制"
+          title={t('bubble.copyTitle')}
           onClick={() => void copy()}
           className="rounded p-1 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
         >

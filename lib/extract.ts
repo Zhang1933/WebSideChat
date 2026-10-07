@@ -1,5 +1,6 @@
 import { isBilibiliVideoUrl } from '@/lib/bilibili';
 import { ExtractError } from '@/lib/extractError';
+import { t } from '@/lib/i18n';
 import { truncateContent } from '@/lib/utils';
 import { extractBilibiliFromPanel } from '@/lib/video/bilibili';
 import { extractYouTubeFromPanel } from '@/lib/video/youtube';
@@ -12,14 +13,12 @@ export { ExtractError };
 function friendlyError(err: unknown): ExtractError {
   const msg = err instanceof Error ? err.message : String(err);
   if (/cannot access|cannot access contents of the page/i.test(msg)) {
-    return new ExtractError(
-      '无法访问此页面：可能是缺少本站注入权限（面板内可一键授权），或为浏览器内置页面 / 商店页',
-    );
+    return new ExtractError(t('err.extract.noInjectPerm'));
   }
   if (/manifest.*permission|permission.*manifest/i.test(msg)) {
-    return new ExtractError('没有注入权限：请点一次工具栏的扩展图标，或在面板内授权本站');
+    return new ExtractError(t('err.extract.permHint'));
   }
-  return new ExtractError(`页面提取失败：${msg}`);
+  return new ExtractError(t('err.extract.fail', msg));
 }
 
 export interface ExtractSuccess {
@@ -56,7 +55,7 @@ export async function extractCurrentPage(
   }
 
   if (!raw || typeof raw.textContent !== 'string') {
-    throw new ExtractError('提取结果为空，请重试或换一个页面');
+    throw new ExtractError(t('err.extract.empty'));
   }
   if (raw.error) {
     throw new ExtractError(raw.error);

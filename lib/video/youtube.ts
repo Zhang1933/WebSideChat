@@ -1,4 +1,5 @@
 import { ExtractError } from '@/lib/extractError';
+import { t } from '@/lib/i18n';
 import type { ExtractResult } from '@/types';
 
 /**
@@ -204,14 +205,14 @@ export async function extractYouTubeFromPanel(tabId: number): Promise<ExtractRes
     | null;
 
   if (!data) {
-    throw new ExtractError('无法读取页面播放器数据，请确认在视频播放页');
+    throw new ExtractError(t('err.yt.noPlayer'));
   }
   if (!data.tracks || data.tracks.length === 0) {
-    throw new ExtractError('该视频没有可用字幕（纯音乐或未开启字幕），无法总结');
+    throw new ExtractError(t('err.yt.noCaptions'));
   }
   // 用户没开字幕（或选中的轨道读不到语言）→ 要求先开启，完全跟随用户选择
   if (!data.activeTrack?.languageCode) {
-    throw new ExtractError('请先在播放器中开启字幕并选择语言（CC 按钮 → 字幕），然后重新提取');
+    throw new ExtractError(t('err.yt.captionsOff'));
   }
 
   const { parseJson3Transcript, parseTimedTextXml } = await import('@/lib/youtube');
@@ -243,7 +244,7 @@ export async function extractYouTubeFromPanel(tabId: number): Promise<ExtractRes
   }
 
   if (!transcript.trim()) {
-    throw new ExtractError('字幕获取失败（未能捕获播放器的字幕请求），请确认字幕已在播放器中正常显示后重试');
+    throw new ExtractError(t('err.yt.captureFail'));
   }
 
   return {

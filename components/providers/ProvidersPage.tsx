@@ -2,16 +2,10 @@ import { ChevronLeft, Plus, ShieldAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { PROVIDER_PRESETS } from '@/config/presets';
+import { useT } from '@/lib/i18n';
 import { getOriginPattern, hasHostPermission, requestHostPermissions } from '@/lib/permissions';
 import {
   currentProviderIdItem,
@@ -43,6 +37,7 @@ export function ProvidersPage({
   /** 深链：?add=1 自动进入新增预设网格 */
   initialAdd?: boolean;
 }) {
+  const t = useT();
   const [view, setView] = useState<View>('list');
   const [providers, setProviders] = useState<Record<string, Provider>>({});
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -142,7 +137,7 @@ export function ProvidersPage({
   }
 
   function handleDelete(provider: Provider) {
-    if (!confirm(`删除供应商「${provider.name}」？`)) return;
+    if (!confirm(t('providers.deleteConfirm', provider.name))) return;
     deleteProvider(provider.id);
   }
 
@@ -158,7 +153,7 @@ export function ProvidersPage({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="返回"
+            aria-label={t('common.back')}
             onClick={() => {
               // 表单页：编辑→列表，新增→预设页；预设页：→列表
               setView(view === 'form' && !editing ? 'preset' : 'list');
@@ -168,14 +163,15 @@ export function ProvidersPage({
             <ChevronLeft className="size-4" />
           </Button>
         ) : onBack ? (
-          <Button variant="ghost" size="icon-sm" aria-label="返回" onClick={onBack}>
+          <Button variant="ghost" size="icon-sm" aria-label={t('common.back')} onClick={onBack}>
             <ChevronLeft className="size-4" />
           </Button>
         ) : null}
         <h1 className="text-sm font-semibold">
-          {view === 'list' && '供应商设置'}
-          {view === 'preset' && '选择预设'}
-          {view === 'form' && (editing ? `编辑：${editing.name}` : `新增：${draftPreset.name}`)}
+          {view === 'list' && t('providers.title')}
+          {view === 'preset' && t('providers.choosePreset')}
+          {view === 'form' &&
+            (editing ? t('providers.editing', editing.name) : t('providers.adding', draftPreset.name))}
         </h1>
       </header>
 
@@ -185,10 +181,10 @@ export function ProvidersPage({
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
             <div className="flex-1">
               <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                {missingOrigins.length} 个供应商域名需要重新授权网络访问
+                {t('providers.migrateTitle', missingOrigins.length)}
               </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                升级为按域授权后，已有供应商需要补一次权限，否则对话请求无法发出
+                {t('providers.migrateHint')}
               </p>
               <Button
                 size="sm"
@@ -199,7 +195,7 @@ export function ProvidersPage({
                   })
                 }
               >
-                一键授权
+                {t('providers.migrateBtn')}
               </Button>
             </div>
           </div>
@@ -220,10 +216,8 @@ export function ProvidersPage({
                   <Plus className="size-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">新增供应商</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    还没有供应商——选择 Claude Code / Codex / OpenCode，或粘贴配置文件导入
-                  </p>
+                  <p className="text-sm font-medium">{t('providers.add')}</p>
+                  <p className="text-[11px] text-muted-foreground">{t('providers.emptyHint')}</p>
                 </div>
               </button>
             ) : (
@@ -256,7 +250,7 @@ export function ProvidersPage({
                     setView('preset');
                   }}
                 >
-                  <Plus className="size-4" /> 新增供应商
+                  <Plus className="size-4" /> {t('providers.add')}
                 </Button>
               </>
             )}
@@ -265,29 +259,11 @@ export function ProvidersPage({
               <>
                 <Separator className="my-2" />
                 <div className="flex flex-col gap-3">
-                  <h2 className="text-xs font-semibold text-muted-foreground">通用设置</h2>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>摘要语言</Label>
-                    <Select
-                      value={settings.summaryLanguage}
-                      onValueChange={(v) => patchSettings({ summaryLanguage: v as AppSettings['summaryLanguage'] })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="zh">中文</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="auto">跟随页面语言</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <h2 className="text-xs font-semibold text-muted-foreground">{t('providers.general')}</h2>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex flex-col">
-                      <Label htmlFor="debug-mode">显示提取的 Web 内容</Label>
-                      <p className="text-[11px] text-muted-foreground">
-                        顶栏"已提取 N 字符"可点击，查看实际送入模型的提取内容
-                      </p>
+                      <Label htmlFor="debug-mode">{t('providers.debugMode')}</Label>
+                      <p className="text-[11px] text-muted-foreground">{t('providers.debugHint')}</p>
                     </div>
                     <Switch
                       id="debug-mode"

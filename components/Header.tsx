@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useT } from '@/lib/i18n';
 import { currentProviderIdItem } from '@/lib/storage';
 import type { Provider } from '@/types';
 import { ProviderIcon } from './providers/ProviderIcon';
@@ -35,6 +36,7 @@ export function Header({
   onCloseDrawer: () => void;
   onOpenSettings: () => void;
 }) {
+  const t = useT();
   return (
     <header className="flex items-center justify-between gap-2 border-b px-3 py-2">
       <DropdownMenu>
@@ -49,7 +51,7 @@ export function Header({
               className="size-6 text-[10px]"
             />
             <span className="truncate">
-              {currentProvider ? currentProvider.name : '未配置供应商'}
+              {currentProvider ? currentProvider.name : t('header.noProvider')}
             </span>
             {currentProvider && (
               <span className="hidden truncate text-xs text-muted-foreground xl:inline">
@@ -60,7 +62,9 @@ export function Header({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">切换供应商</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            {t('header.switchProvider')}
+          </DropdownMenuLabel>
           {providers.map((p) => (
             <DropdownMenuItem key={p.id} onClick={() => void currentProviderIdItem.setValue(p.id)}>
               <ProviderIcon icon={p.icon} iconColor={p.iconColor} className="size-5 text-[9px]" />
@@ -70,12 +74,12 @@ export function Header({
           ))}
           {providers.length === 0 && (
             <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-              暂无供应商，去设置里添加
+              {t('header.emptyHint')}
             </div>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onOpenSettings}>
-            <Settings className="size-3.5" /> 管理供应商…
+            <Settings className="size-3.5" /> {t('header.manage')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -84,8 +88,8 @@ export function Header({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={drawerPinned ? '取消自动展开：新标签页不再默认打开侧边栏' : '新标签页自动展开侧边栏'}
-          title={drawerPinned ? '已固定：新标签页自动展开侧边栏（点击取消）' : '固定：新标签页自动展开侧边栏'}
+          aria-label={drawerPinned ? t('header.pinOnAria') : t('header.pinOffAria')}
+          title={drawerPinned ? t('header.pinOn') : t('header.pinOff')}
           onClick={onToggleDrawerPin}
         >
           {drawerPinned ? (
@@ -98,14 +102,14 @@ export function Header({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="关闭抽屉"
-            title="关闭本页抽屉"
+            aria-label={t('header.closeDrawerAria')}
+            title={t('header.closeDrawer')}
             onClick={onCloseDrawer}
           >
             <X className="size-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon-sm" aria-label="设置" onClick={onOpenSettings}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('common.settings')} onClick={onOpenSettings}>
           <Settings className="size-4" />
         </Button>
       </div>

@@ -17,6 +17,7 @@ import {
   providersItem,
   settingsItem,
 } from '@/lib/storage';
+import { defaultUiLang, setUiLang, t, useT } from '@/lib/i18n';
 import { useActiveTab } from '@/lib/tabs';
 import { ensureOffscreenReady, type TurnMessage } from '@/lib/turnMessages';
 import { contentBudgetChars, pageKeyOf } from '@/lib/utils';
@@ -27,6 +28,7 @@ import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation
 const IN_DRAWER = typeof window !== 'undefined' && window.self !== window.top;
 
 export default function App() {
+  const t = useT();
   const tab = useActiveTab();
   const pageKey = tab.url ? pageKeyOf(tab.url) : null;
 
@@ -44,7 +46,7 @@ export default function App() {
     if (!drawerPinned) {
       const granted = await requestHostPermission(ALL_URLS_PATTERN);
       if (!granted) {
-        setError('开启固定抽屉需要「所有网站」访问权限（用于在新标签页自动展开），请重试并在弹窗中允许');
+        setError(t('app.pinPermErr'));
         return;
       }
     }
@@ -63,10 +65,16 @@ export default function App() {
   useEffect(() => {
     providersItem.getValue().then(setProviders);
     currentProviderIdItem.getValue().then(setCurrentProviderId);
-    settingsItem.getValue().then(setSettings);
+    settingsItem.getValue().then((s) => {
+      setSettings(s);
+      setUiLang(s.uiLang ?? defaultUiLang());
+    });
     const u1 = providersItem.watch(setProviders);
     const u2 = currentProviderIdItem.watch(setCurrentProviderId);
-    const u3 = settingsItem.watch(setSettings);
+    const u3 = settingsItem.watch((s) => {
+      setSettings(s);
+      setUiLang(s.uiLang ?? defaultUiLang());
+    });
     return () => {
       u1();
       u2();
@@ -186,7 +194,7 @@ export default function App() {
         }
         if (!acked) {
           console.error('[WebSideChat] turn:start 20 次均未应答，offscreen 启动失败');
-          throw new Error('生成引擎未就绪（offscreen 无应答），请重试');
+          throw new Error(t('app.engineNotReady'));
         }
         console.log('[WebSideChat] 回合已被引擎接收，等待流式输出…');
       } catch (err) {
@@ -196,7 +204,7 @@ export default function App() {
           return next;
         });
         if (base.pageKey === pageKeyRef.current) {
-          setError(`发起生成失败：${(err as Error).message}`);
+          setError(t('app.turnFail', (err as Error).message));
         }
       }
     },
@@ -207,11 +215,11 @@ export default function App() {
   const extractAndSummarize = useCallback(
     async (firstUserContent?: string) => {
       if (tab.id == null || !tab.url) {
-        setError('没有可提取的页面');
+        setError(t('app.noPageErr'));
         return;
       }
       if (!currentProvider) {
-        setError('请先在设置中配置并启用一个供应商');
+        setError(t('app.noProviderErr'));
         return;
       }
       setExtracting(true);
@@ -238,13 +246,19 @@ export default function App() {
           } catch {
             /* ignore */
           }
-          if (pattern && host && /无法访问此页面|没有注入权限/.test(err.message)) {
+          if (
+            pattern &&
+            host &&
+            /无法访问此页面|没有注入权限|Cannot access this page|No injection permission/.test(
+              err.message,
+            )
+          ) {
             setError(null);
             setNeedsPermission({ host, pattern });
             return;
           }
         }
-        setError(err instanceof ExtractError ? err.message : `提取失败：${String(err)}`);
+        setError(err instanceof ExtractError ? err.message : t('app.extractFail', String(err)));
       }
     },
     [tab.id, tab.url, currentProvider, settings, runTurn],
@@ -263,7 +277,7 @@ export default function App() {
     }
     // 已有追问时重新生成 = 清空对话，需确认
     if (hasSummary(conversation) && conversation.messages.length > 2) {
-      if (!confirm('重新生成摘要将清空后续追问对话，继续？')) return;
+      if (!confirm(t('app.confirmRegen'))) return;
     }
     const base = hasSummary(conversation) ? { ...conversation, messages: [] } : conversation;
     void runTurn(
@@ -336,7 +350,7 @@ export default function App() {
           <AlertCircle className="mt-0.5 size-3 shrink-0" />
           <span className="flex-1">{error}</span>
           <button className="shrink-0 underline" onClick={() => setError(null)}>
-            关闭
+            {t('common.close')}
           </button>
         </div>
       )}
@@ -347,11 +361,9 @@ export default function App() {
           <ShieldQuestion className="mt-0.5 size-3 shrink-0 text-amber-600" />
           <div className="flex-1">
             <p className="font-medium text-amber-800 dark:text-amber-300">
-              需要授权访问 {needsPermission.host}
+              {t('app.needPermTitle', needsPermission.host)}
             </p>
-            <p className="mt-0.5 text-muted-foreground">
-              点一次上方工具栏的扩展图标也可临时授权（当前标签页有效）；或为本站永久授权：
-            </p>
+            <p className="mt-0.5 text-muted-foreground">{t('app.needPermHint')}</p>
             <button
               className="mt-1.5 rounded-full bg-amber-600 px-3 py-1 text-white transition-colors hover:bg-amber-700"
               onClick={() =>
@@ -364,7 +376,7 @@ export default function App() {
                 })()
               }
             >
-              授权本站（{needsPermission.host}）
+              {t('app.grantSite', needsPermission.host)}
             </button>
           </div>
         </div>
@@ -374,13 +386,13 @@ export default function App() {
         {!currentProvider ? (
           <div className="flex flex-col items-center gap-4 px-6 pt-10 text-center">
             <Globe className="size-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">还没有配置 LLM 供应商</p>
+            <p className="text-sm text-muted-foreground">{t('app.noProviderTitle')}</p>
             <button
               className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
               onClick={() => openProviderManager({ add: true })}
             >
               <Plus className="size-4" />
-              去添加供应商
+              {t('app.noProviderHint')}
             </button>
           </div>
         ) : (

@@ -1,4 +1,5 @@
-import type { AppSettings, Conversation } from '@/types';
+import type { AppSettings, Conversation, SummaryLanguage } from '@/types';
+import { defaultUiLang } from '@/lib/i18n';
 import { videoSiteOf, type VideoSite } from '@/lib/video/pages';
 import { videoSystemPrompt } from '@/lib/video/prompts';
 
@@ -10,14 +11,14 @@ export const DEFAULT_WEB_SYSTEM_PROMPT =
 export const DEFAULT_SYSTEM_PROMPT = DEFAULT_WEB_SYSTEM_PROMPT;
 
 /** 内置摘要指令（网页，按摘要语言） */
-export const DEFAULT_WEB_SUMMARY_PROMPTS: Record<AppSettings['summaryLanguage'], string> = {
+export const DEFAULT_WEB_SUMMARY_PROMPTS: Record<SummaryLanguage, string> = {
   zh: '请为这个网页生成结构化摘要，使用 Markdown 输出，包含以下部分：\n\n## 一句话总结\n## 核心要点（3-6 条 bullet，保留关键细节）\n## 关键数据 / 结论\n\n要求：只基于正文内容，不要编造；正文信息不足时如实说明。',
   en: 'Summarize this page in Markdown with these sections:\n\n## TL;DR\n## Key Points (3-6 bullets with key details)\n## Data / Conclusions\n\nOnly use the page content; do not make things up.',
   auto: '请为这个网页生成结构化摘要，使用 Markdown 输出，包含以下部分：\n\n## 一句话总结\n## 核心要点（3-6 条 bullet，保留关键细节）\n## 关键数据 / 结论\n\n要求：只基于正文内容，不要编造；正文信息不足时如实说明。',
 };
 
 /** 内置摘要指令（视频，按摘要语言） */
-export const DEFAULT_VIDEO_SUMMARY_PROMPTS: Record<AppSettings['summaryLanguage'], string> = {
+export const DEFAULT_VIDEO_SUMMARY_PROMPTS: Record<SummaryLanguage, string> = {
   zh: '请为这个视频生成结构化摘要，使用 Markdown 输出，包含以下部分：\n\n## 一句话总结\n## 核心要点（3-6 条 bullet，每条附可点击的时间戳链接）\n## 关键结论\n\n要求：只基于字幕内容，不要编造；字幕信息不足时如实说明。',
   en: 'Summarize this video in Markdown with these sections:\n\n## TL;DR\n## Key Points (3-6 bullets, each with a clickable timestamp link)\n## Conclusions\n\nOnly use the subtitle content; do not make things up.',
   auto: '请为这个视频生成结构化摘要，使用 Markdown 输出，包含以下部分：\n\n## 一句话总结\n## 核心要点（3-6 条 bullet，每条附可点击的时间戳链接）\n## 关键结论\n\n要求：只基于字幕内容，不要编造；字幕信息不足时如实说明。',
@@ -26,11 +27,16 @@ export const DEFAULT_VIDEO_SUMMARY_PROMPTS: Record<AppSettings['summaryLanguage'
 /** 兼容旧引用 */
 export const DEFAULT_SUMMARY_PROMPTS = DEFAULT_WEB_SUMMARY_PROMPTS;
 
-const LANG_INSTRUCTION: Record<AppSettings['summaryLanguage'], string> = {
+const LANG_INSTRUCTION: Record<SummaryLanguage, string> = {
   zh: '请始终使用中文回复。',
   en: 'Always respond in English.',
   auto: '请使用与网页正文相同的语言回复。',
 };
+
+/** 生效的摘要语言：未显式设置时跟随浏览器语言（zh* → zh，其余 → en） */
+export function summaryLangOf(settings: AppSettings): SummaryLanguage {
+  return settings.summaryLanguage ?? defaultUiLang();
+}
 
 /** 系统提示词正文之前的角色设定（内置，不允许用户自定义；视频按站点取专属提示词） */
 export function systemRole(_settings: AppSettings, site: VideoSite | null = null): string {
@@ -44,7 +50,7 @@ export function summaryUserPrompt(settings: AppSettings, isVideo = false): strin
   )?.trim();
   if (custom) return custom;
   const table = isVideo ? DEFAULT_VIDEO_SUMMARY_PROMPTS : DEFAULT_WEB_SUMMARY_PROMPTS;
-  return table[settings.summaryLanguage];
+  return table[summaryLangOf(settings)];
 }
 
 /** 是否为内置摘要指令（用于识别并隐藏历史会话里的摘要轮指令消息） */
@@ -70,7 +76,7 @@ export function buildSystemPrompt(conversation: Conversation, settings: AppSetti
 
   return [
     systemRole(settings, site),
-    LANG_INSTRUCTION[settings.summaryLanguage],
+    LANG_INSTRUCTION[summaryLangOf(settings)],
     '',
     '<page>',
     meta,

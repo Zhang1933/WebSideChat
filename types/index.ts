@@ -79,8 +79,14 @@ export interface Conversation {
   updatedAt: number;
 }
 
+/** 摘要（模型输出）语言 */
+export type SummaryLanguage = 'zh' | 'en' | 'auto';
+
 export interface AppSettings {
-  summaryLanguage: 'zh' | 'en' | 'auto';
+  /** 摘要（模型输出）语言；未设置 = 跟随浏览器语言 */
+  summaryLanguage?: SummaryLanguage;
+  /** 插件界面显示语言（与摘要语言独立）；未设置 = 跟随浏览器语言 */
+  uiLang?: 'zh' | 'en';
   /** 显示提取的 Web 内容：顶栏"已提取 N 字符"可点击查看实际送入模型的正文（默认开） */
   debugMode?: boolean;
   /** 网页场景自定义系统提示词；空 = 内置默认 */
@@ -94,6 +100,6 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  summaryLanguage: 'zh',
+  // summaryLanguage / uiLang 不设默认：未显式选择时跟随浏览器语言（lib/i18n.ts defaultUiLang）
   debugMode: true,
 };

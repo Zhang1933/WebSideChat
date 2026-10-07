@@ -1,4 +1,5 @@
 import { ExtractError } from '@/lib/extractError';
+import { t } from '@/lib/i18n';
 import type { ExtractResult } from '@/types';
 
 /**
@@ -113,7 +114,7 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
     });
     res = results?.[0] as { result: unknown } | undefined;
   } catch (e) {
-    throw new ExtractError(`页面脚本执行失败: ${String(e)}`);
+    throw new ExtractError(t('err.extract.scriptFail', String(e)));
   }
 
   const data = res?.result as
@@ -127,7 +128,7 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
       }
     | null;
   if (!data) {
-    throw new ExtractError('无法读取页面视频数据，请确认在 B 站视频播放页');
+    throw new ExtractError(t('err.bili.noVideoData'));
   }
   console.log('[WebSideChat extract] B站视频数据:', {
     aid: data.aid,
@@ -193,13 +194,13 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
           if (subEntry) {
             console.log('[WebSideChat extract] ② 字幕列表命中:', { lan: subEntry.lan });
           } else {
-            failReason = '该视频没有中文字幕（AI 字幕需登录 B 站，且仅部分视频开启）';
+            failReason = t('err.bili.noZhCaptions');
           }
           break;
         }
-        failReason = `字幕列表接口返回 ${json?.code ?? r.status}${json?.message ? `：${json.message}` : ''}`;
+        failReason = t('err.bili.listCode', json?.code ?? r.status, json?.message ? `：${json.message}` : '');
       } catch (e) {
-        failReason = `字幕列表请求失败：${String(e)}`;
+        failReason = t('err.bili.listFail', String(e));
       }
     }
     if (subEntry?.subtitle_url) {
@@ -215,7 +216,7 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
       }
     }
     if (!transcript.trim()) {
-      throw new ExtractError(failReason || '该视频没有中文字幕');
+      throw new ExtractError(failReason || t('err.bili.noZhCaptions'));
     }
   }
 

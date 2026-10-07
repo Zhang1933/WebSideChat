@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, FileUp, WandSparkles } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { getUiLang, t, useT } from '@/lib/i18n';
 import { parseAndMergeTexts, type ProviderDraft } from '@/lib/importConfig';
 import type { ProviderPreset } from '@/types';
 
@@ -14,10 +15,10 @@ function validateSyntax(text: string, isToml: boolean): string | null {
       // 至少有一行 key = value 或 [section]，且不含明显非法行
       const lines = trimmed.split('\n');
       const hasContent = lines.some((l) => /^\s*(\[.+\]\s*$|[\w."'-]+\s*=)/.test(l));
-      if (!hasContent) return '不是有效的 TOML 格式';
+      if (!hasContent) return t('import.notToml');
       return null;
     } catch {
-      return 'TOML 解析失败';
+      return t('import.tomlParseFail');
     }
   }
   try {
@@ -32,18 +33,18 @@ function validateSyntax(text: string, isToml: boolean): string | null {
       const before = trimmed.slice(0, pos);
       const line = before.split('\n').length;
       const col = pos - before.lastIndexOf('\n');
-      return `JSON 语法错误（第 ${line} 行第 ${col} 列）: ${msg.split(' at position')[0]}`;
+      return t('import.jsonErrPos', line, col, msg.split(' at position')[0] ?? msg);
     }
-    return `JSON 语法错误: ${msg}`;
+    return t('import.jsonErr', msg);
   }
 }
 
 type HintKey = NonNullable<ProviderPreset['importHint']>;
 
-const HINT_TITLE: Record<HintKey, string> = {
-  'claude-settings': '从 Claude Code settings.json 导入',
-  codex: '从 Codex auth.json + config.toml 导入',
-  'opencode-json': '从 OpenCode opencode.json 导入',
+const HINT_TITLE_KEY: Record<HintKey, string> = {
+  'claude-settings': 'import.title.claude-settings',
+  codex: 'import.title.codex',
+  'opencode-json': 'import.title.opencode-json',
 };
 
 interface Slot {
@@ -146,6 +147,7 @@ export function ConfigImport({
   onTextsChange: (next: Record<string, string>) => void;
   onApply: (draft: ProviderDraft) => void;
 }) {
+  const t = useT();
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [open, setOpen] = useState(true);
   const slots = slotsFor(hint);
@@ -168,22 +170,30 @@ export function ConfigImport({
       slots.map((s) => ({ key: s.key, label: s.label, text: from[s.key] ?? '' })),
     );
     if (labels.length === 0) {
-      if (errors.length > 0) setStatus({ ok: false, msg: errors[0] ?? '配置未识别' });
+      if (errors.length > 0) setStatus({ ok: false, msg: errors[0] ?? t('import.unrecognized') });
       return;
     }
     onApply(draft);
+    // 中英文分隔符差异：顿号/分号 vs 逗号/分号+空格
+    const sep = getUiLang() === 'zh' ? '、' : ', ';
+    const esep = getUiLang() === 'zh' ? '；' : '; ';
     const filled = [
-      draft.baseUrl && 'Base URL',
-      draft.apiKey && (draft.accountId ? 'API Key（ChatGPT OAuth）' : 'API Key'),
-      draft.model && '模型',
-      draft.apiFormat && '协议',
-      draft.contextLimit && '上下文上限',
+      draft.baseUrl && t('import.f.baseUrl'),
+      draft.apiKey && (draft.accountId ? t('import.f.apiKeyOauth') : t('import.f.apiKey')),
+      draft.model && t('import.f.model'),
+      draft.apiFormat && t('import.f.apiFormat'),
+      draft.contextLimit && t('import.f.context'),
     ]
       .filter(Boolean)
-      .join('、');
+      .join(sep);
     setStatus({
       ok: errors.length === 0,
-      msg: `已识别 ${labels.join(' + ')}，填入：${filled || '（无新字段）'}${errors.length ? `；${errors.join('；')}` : ''}`,
+      msg: t(
+        'import.applied',
+        labels.join(' + '),
+        filled || t('import.noNewFields'),
+        errors.length ? esep + errors.join(esep) : '',
+      ),
     });
   }
 
@@ -196,7 +206,7 @@ export function ConfigImport({
       onTextsChange(next);
       applyMerged(next); // 选文件后立即解析（不等失焦）
     } catch (err) {
-      setStatus({ ok: false, msg: `读取文件失败：${(err as Error).message}` });
+      setStatus({ ok: false, msg: t('import.readFail', (err as Error).message) });
     }
     e.target.value = '';
   }
@@ -210,7 +220,7 @@ export function ConfigImport({
       >
         {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         <WandSparkles className="size-3.5" />
-        {hint ? HINT_TITLE[hint] : '从配置文件导入'}
+        {hint ? t(HINT_TITLE_KEY[hint]) : t('import.title.claude-settings')}
       </button>
 
       {open && (
@@ -226,7 +236,7 @@ export function ConfigImport({
                   )}
                   <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                     <FileUp className="size-3.5" />
-                    选择文件…
+                    {t('import.pickFile')}
                     <input
                       type="file"
                       accept={slot.accept}

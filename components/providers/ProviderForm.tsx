@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { fetchModels } from '@/lib/llm/models';
+import { useT } from '@/lib/i18n';
 import { loginCodexOAuth } from '@/lib/oauth';
 import {
   getOriginPattern,
@@ -95,22 +96,25 @@ function backfillImportTexts(editing: Provider | null): Record<string, string> {
   return {};
 }
 
-/** OAuth 登录成功后预填的默认 config.toml（指向 ChatGPT Codex 后端，可编辑后重新解析） */
-const DEFAULT_CODEX_CONFIG_TOML = [
-  'model = "gpt-6-luna"',
-  'model_provider = "openai"',
-  'model_reasoning_effort = "medium"',
-  '',
-  '[model_providers.openai]',
-  'name = "OpenAI (ChatGPT 登录)"',
-  'base_url = "https://chatgpt.com/backend-api/codex"',
-  'wire_api = "responses"',
-].join('\n');
+/** OAuth 登录成功后预填的默认 config.toml（指向 ChatGPT Codex 后端，可编辑后重新解析）；
+ * provider 显示名跟随界面语言 */
+function codexConfigToml(t: ReturnType<typeof useT>): string {
+  return [
+    'model = "gpt-5.5"',
+    'model_provider = "openai"',
+    'model_reasoning_effort = "medium"',
+    '',
+    '[model_providers.openai]',
+    `name = "${t('form.codexProviderName')}"`,
+    'base_url = "https://chatgpt.com/backend-api/codex"',
+    'wire_api = "responses"',
+  ].join('\n');
+}
 
-const BASE_URL_PLACEHOLDER: Record<FormValues['apiFormat'], string> = {
-  openai_chat: '如 https://api.deepseek.com（自带版本段，无需自动补 /v1）',
-  anthropic: '如 https://api.anthropic.com',
-  openai_responses: '如 https://api.x.ai/v1',
+const BASE_URL_PLACEHOLDER_KEY: Record<FormValues['apiFormat'], string> = {
+  openai_chat: 'form.baseUrlPh.chat',
+  anthropic: 'form.baseUrlPh.anthropic',
+  openai_responses: 'form.baseUrlPh.responses',
 };
 
 export function ProviderForm({
@@ -126,6 +130,7 @@ export function ProviderForm({
   onSave: (values: FormValues, extras: { accountId?: string; importTexts?: Record<string, string> }) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [showKey, setShowKey] = useState(false);
   const [models, setModels] = useState<string[] | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
@@ -134,6 +139,8 @@ export function ProviderForm({
   const [accountId, setAccountId] = useState<string | undefined>(editing?.accountId);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthMsg, setOauthMsg] = useState<string | null>(null);
+  /** oauthMsg 是否为成功提示（成功=绿色；不用文案前缀判断，中英文前缀不同） */
+  const [oauthOk, setOauthOk] = useState(false);
   /** OAuth 登录成功后生成的配置内容，预填到导入区输入框 */
   const [importPrefill, setImportPrefill] = useState<Record<string, string> | undefined>();
   /** 导入区各输入框内容（受控；编辑时回显保存过的原文，旧数据反向生成等效配置） */
@@ -190,9 +197,10 @@ export function ProviderForm({
   async function handleCodexLogin() {
     setOauthBusy(true);
     setOauthMsg(null);
+    setOauthOk(false);
     // 登录跳转与令牌请求都要访问 chatgpt.com / auth.openai.com——按钮手势内申请
     if (!(await requestHostPermissions(OAUTH_ORIGIN_PATTERNS))) {
-      setOauthMsg('登录需要访问 chatgpt.com 的权限，请重试并在弹窗中允许');
+      setOauthMsg(t('form.oauthPermErr'));
       setOauthBusy(false);
       return;
     }
@@ -201,7 +209,7 @@ export function ProviderForm({
       setValue('apiFormat', 'openai_responses');
       setValue('baseUrl', 'https://chatgpt.com/backend-api/codex');
       setValue('apiKey', result.access_token);
-      setValue('model', 'gpt-6-luna');
+      setValue('model', 'gpt-5.5');
       setAccountId(result.account_id);
       // 生成等效 auth.json + 默认 config.toml，预填导入区（可见、可改、可重新解析）
       const authJson = JSON.stringify(
@@ -219,12 +227,16 @@ export function ProviderForm({
         null,
         2,
       );
-      setImportPrefill({ auth: authJson, toml: DEFAULT_CODEX_CONFIG_TOML });
+      setImportPrefill({ auth: authJson, toml: codexConfigToml(t) });
+      setOauthOk(true);
       setOauthMsg(
-        `登录成功${result.account_id ? `（账号 ${result.account_id.slice(0, 8)}…）` : ''}，已生成 auth.json 与默认 config.toml`,
+        t(
+          'form.oauthOk',
+          result.account_id ? t('form.oauthAccount', result.account_id.slice(0, 8)) : '',
+        ),
       );
     } catch (err) {
-      setOauthMsg(`登录失败：${(err as Error).message}`);
+      setOauthMsg(t('form.oauthFail', (err as Error).message));
     } finally {
       setOauthBusy(false);
     }
@@ -262,7 +274,7 @@ export function ProviderForm({
     // 申请失败 → 提示改点「获取模型列表」按钮（点击即手势）
     const pattern = getOriginPattern(override?.baseUrl ?? watch('baseUrl') ?? '');
     if (pattern && !(await requestHostPermission(pattern))) {
-      setFetchModelError('尚未授权访问该 API 域名——点击「获取模型列表」并在弹窗中允许');
+      setFetchModelError(t('form.modelsPermHint'));
       return null;
     }
     setFetchingModels(true);
@@ -274,14 +286,14 @@ export function ProviderForm({
         accountId: override?.accountId ?? accountId,
       });
       if (list.length === 0) {
-        setFetchModelError('接口返回空列表');
+        setFetchModelError(t('form.modelsEmpty'));
         return null;
       }
       const ids = list.map((m) => m.id);
       setModels(ids);
       return ids;
     } catch (err) {
-      setFetchModelError(`获取失败：${(err as Error).message}`);
+      setFetchModelError(t('form.modelsFail', (err as Error).message));
       return null;
     } finally {
       setFetchingModels(false);
@@ -309,7 +321,7 @@ export function ProviderForm({
           if (!getValues('apiKey').trim()) {
             setError('apiKey', {
               type: 'manual',
-              message: 'API Key 不能为空：粘贴配置文件（失焦自动填充），或手动填写',
+              message: t('form.keyRequired'),
             });
             return;
           }
@@ -318,7 +330,7 @@ export function ProviderForm({
           if (pattern && !(await requestHostPermission(pattern))) {
             setError('baseUrl', {
               type: 'manual',
-              message: '未授予该域名访问权限，无法连接 API——重试保存并在弹窗中允许',
+              message: t('form.baseUrlPermErr'),
             });
             return;
           }
@@ -333,15 +345,13 @@ export function ProviderForm({
       {preset.importHint === 'codex' && (
         <div className="flex items-center gap-3 rounded-lg border border-dashed p-2.5">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium">ChatGPT 账号登录（OAuth）</p>
-            <p className="text-[11px] text-muted-foreground">
-              跳转网页授权，成功后自动生成 auth.json 与默认 config.toml
-            </p>
+            <p className="text-xs font-medium">{t('form.oauthTitle')}</p>
+            <p className="text-[11px] text-muted-foreground">{t('form.oauthHint')}</p>
             {oauthMsg && (
               <p
                 className={
-                  oauthMsg.startsWith('登录成功')
-                    ? 'text-[11px] text-primary'
+                  oauthOk
+                    ? 'text-[11px] text-green-600 dark:text-green-400'
                     : 'text-[11px] text-destructive'
                 }
               >
@@ -356,7 +366,7 @@ export function ProviderForm({
             disabled={oauthBusy}
             onClick={() => void handleCodexLogin()}
           >
-            {oauthBusy ? '等待登录…' : '网页登录'}
+            {oauthBusy ? t('form.oauthWaiting') : t('form.oauthBtn')}
           </Button>
         </div>
       )}
@@ -378,22 +388,22 @@ export function ProviderForm({
       />
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="name">名称</Label>
-        <Input id="name" placeholder="供应商显示名" {...register('name')} />
+        <Label htmlFor="name">{t('form.name')}</Label>
+        <Input id="name" placeholder={t('form.namePh')} {...register('name')} />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>接口协议</Label>
+        <Label>{t('form.apiFormat')}</Label>
         {preset.importHint === 'claude-settings' ? (
           // Claude Code 固定走 Anthropic Messages 协议，不可更改
           <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
-            Anthropic（v1/messages）
+            {t('form.fmtAnthropic')}
           </div>
         ) : preset.importHint === 'codex' ? (
           // Codex 固定走 OpenAI Responses 协议，不可更改
           <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
-            OpenAI Responses（v1/responses）
+            {t('form.fmtResponses')}
           </div>
         ) : (
           <Select value={apiFormat} onValueChange={(v) => setValue('apiFormat', v as FormValues['apiFormat'])}>
@@ -401,28 +411,28 @@ export function ProviderForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="openai_chat">OpenAI 兼容（chat/completions）</SelectItem>
-              <SelectItem value="anthropic">Anthropic（v1/messages）</SelectItem>
-              <SelectItem value="openai_responses">OpenAI Responses（v1/responses）</SelectItem>
+              <SelectItem value="openai_chat">{t('form.fmtChat')}</SelectItem>
+              <SelectItem value="anthropic">{t('form.fmtAnthropic')}</SelectItem>
+              <SelectItem value="openai_responses">{t('form.fmtResponses')}</SelectItem>
             </SelectContent>
           </Select>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="apiKey">API Key</Label>
+        <Label htmlFor="apiKey">{t('form.apiKey')}</Label>
         <div className="relative">
           <Input
             id="apiKey"
             type={showKey ? 'text' : 'password'}
             autoComplete="off"
-            placeholder="sk-…（Ollama 等本机服务可留空）"
+            placeholder={t('form.apiKeyPh')}
             className="pr-9"
             {...register('apiKey')}
           />
           <button
             type="button"
-            aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
+            aria-label={showKey ? t('form.hideKey') : t('form.showKey')}
             onClick={() => setShowKey((v) => !v)}
             className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
@@ -433,14 +443,14 @@ export function ProviderForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="baseUrl">Base URL</Label>
-        <Input id="baseUrl" placeholder={BASE_URL_PLACEHOLDER[apiFormat]} {...register('baseUrl')} />
+        <Label htmlFor="baseUrl">{t('form.baseUrl')}</Label>
+        <Input id="baseUrl" placeholder={t(BASE_URL_PLACEHOLDER_KEY[apiFormat])} {...register('baseUrl')} />
         {errors.baseUrl && <p className="text-xs text-destructive">{errors.baseUrl.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="model">模型选择</Label>
+          <Label htmlFor="model">{t('form.model')}</Label>
           <button
             type="button"
             onClick={() =>
@@ -453,19 +463,19 @@ export function ProviderForm({
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             {fetchingModels ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-            {fetchingModels ? '获取中…' : '获取模型列表'}
+            {fetchingModels ? t('form.fetching') : t('form.fetchModels')}
           </button>
         </div>
         {models ? (
           <div className="flex items-center gap-2">
             <Select value={watch('model')} onValueChange={(v) => setValue('model', v)}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择模型" />
+                <SelectValue placeholder={t('form.modelPh')} />
               </SelectTrigger>
               <SelectContent className="max-h-64">
                 {/* 配置文件带入的模型可能不在 /models 列表里，固定置顶防止下拉显示为空 */}
                 {watch('model') && !models.includes(watch('model')) && (
-                  <SelectItem value={watch('model')}>{watch('model')}（配置值）</SelectItem>
+                  <SelectItem value={watch('model')}>{watch('model')}{t('form.modelFromConfig')}</SelectItem>
                 )}
                 {models.map((id) => (
                   <SelectItem key={id} value={id}>
@@ -475,22 +485,22 @@ export function ProviderForm({
               </SelectContent>
             </Select>
             <Button type="button" variant="ghost" size="sm" onClick={() => setModels(null)}>
-              手动输入
+              {t('form.manualInput')}
             </Button>
           </div>
         ) : (
-          <Input id="model" placeholder="模型 ID" {...register('model')} />
+          <Input id="model" placeholder={t('form.modelIdPh')} {...register('model')} />
         )}
         {fetchModelError && <p className="text-xs text-destructive">{fetchModelError}</p>}
         {errors.model && <p className="text-xs text-destructive">{errors.model.message}</p>}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contextLimit">上下文上限（token）</Label>
+        <Label htmlFor="contextLimit">{t('form.contextLimit')}</Label>
         <Input
           id="contextLimit"
           type="text"
-          placeholder={`自动：${autoContextLimit.toLocaleString()}`}
+          placeholder={t('form.contextAuto', autoContextLimit.toLocaleString())}
           {...register('contextLimit')}
           onBlur={(e) => {
             // 人类写法自动转数字："1m" → 1000000，"128k" → 128000
@@ -501,9 +511,7 @@ export function ProviderForm({
             }
           }}
         />
-        <p className="text-[11px] text-muted-foreground">
-          留空 = 自动：模型名带长度后缀（如 [1m]、[128k]）自动取对应 token 数，否则 1,000,000；也可直接填 1m、128k
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t('form.contextHint')}</p>
         {errors.contextLimit && (
           <p className="text-xs text-destructive">{errors.contextLimit.message}</p>
         )}
@@ -511,10 +519,10 @@ export function ProviderForm({
 
       <div className="mt-2 flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          取消
+          {t('common.cancel')}
         </Button>
         <Button type="submit" size="sm">
-          保存
+          {t('common.save')}
         </Button>
       </div>
     </form>

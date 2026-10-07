@@ -2,6 +2,7 @@ import { browser } from '#imports';
 import { CONTEXT_COMPRESSED_MARKER, withMessage } from '@/lib/conversation';
 import { compressThreshold, estimateConversationTokens } from '@/lib/context';
 import { compressHistory, describeLlmError, streamChat } from '@/lib/llm/client';
+import { defaultUiLang, setUiLang, t } from '@/lib/i18n';
 import { buildSystemPrompt } from '@/lib/prompts';
 import { effectiveContextLimit } from '@/lib/utils';
 import type { TurnMessage } from '@/lib/turnMessages';
@@ -43,6 +44,9 @@ browser.runtime.onMessage.addListener((msg: TurnMessage) => {
 
 async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>) {
   const { streamId, pageKey, provider, settings, conversation: base, userContent, target } = msg;
+
+  // offscreen 不读 storage：语言随回合消息携带，占位/错误文案按用户设置输出
+  setUiLang(settings.uiLang ?? defaultUiLang());
 
   console.log('[WebSideChat offscreen] turn:start 收到', {
     pageKey,
@@ -136,13 +140,13 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
             // 中断/出错但已有部分内容：保留并标注
             fin = withMessage(convNow, {
               role: 'assistant',
-              content: acc + '\n\n> ⚠️ ' + (err.kind === 'aborted' ? '生成已中断' : describeLlmError(err)),
+              content: acc + '\n\n> ⚠️ ' + (err.kind === 'aborted' ? t('turn.interrupted') : describeLlmError(err)),
             });
           } else {
             // 一无所获：保留用户提问，补占位回复维持角色交替
             fin = withMessage(convNow, {
               role: 'assistant',
-              content: err.kind === 'aborted' ? '*（已停止，未生成内容）*' : '*（未生成内容，请重试）*',
+              content: err.kind === 'aborted' ? t('turn.stoppedPlaceholder') : t('turn.emptyPlaceholder'),
             });
           }
           emit({
@@ -162,13 +166,13 @@ async function handleTurnStart(msg: Extract<TurnMessage, { type: 'turn:start' }>
     console.error('[WebSideChat offscreen] 回合内部异常:', err);
     const fin = withMessage(
       withMessage(base, { role: 'user', content: userContent } satisfies ChatMessage),
-      { role: 'assistant', content: '*（回合引擎内部错误，请重试）*' },
+      { role: 'assistant', content: t('turn.internalErr') },
     );
     emit({
       type: 'turn:error',
       streamId,
       pageKey,
-      error: `回合引擎内部错误：${err instanceof Error ? err.message : String(err)}`,
+      error: t('turn.internalErrDetail', err instanceof Error ? err.message : String(err)),
       conversation: fin,
     });
   } finally {

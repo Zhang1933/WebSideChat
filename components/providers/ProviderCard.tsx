@@ -1,6 +1,7 @@
 import { Check, Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Provider } from '@/types';
 import { ProviderIcon } from './ProviderIcon';
@@ -19,6 +20,7 @@ export function ProviderCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -32,7 +34,7 @@ export function ProviderCard({
           <span className="truncate text-sm font-medium">{provider.name}</span>
           {isCurrent && (
             <Badge variant="default" className="h-4 shrink-0 px-1.5 text-[10px]">
-              使用中
+              {t('common.inUse')}
             </Badge>
           )}
         </div>
@@ -46,16 +48,16 @@ export function ProviderCard({
           </span>
         ) : (
           <Button variant="secondary" size="sm" onClick={onUse}>
-            使用
+            {t('common.use')}
           </Button>
         )}
-        <Button variant="ghost" size="icon-sm" aria-label="编辑" onClick={onEdit}>
+        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
           <Pencil className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="删除"
+          aria-label={t('common.delete')}
           className="text-muted-foreground hover:text-destructive"
           onClick={onDelete}
         >

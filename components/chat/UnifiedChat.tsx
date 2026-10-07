@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { CONTEXT_COMPRESSED_MARKER, visibleStartIndex } from '@/lib/conversation';
+import { useT } from '@/lib/i18n';
 import { isVideoPageUrl } from '@/lib/video/pages';
 import type { Conversation } from '@/types';
 import { MessageBubble } from './MessageBubble';
@@ -40,6 +41,7 @@ export function UnifiedChat({
   onSend: (text: string, editFrom?: number) => void;
   onStop: () => void;
 }) {
+  const t = useT();
   const [input, setInput] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -109,11 +111,11 @@ export function UnifiedChat({
               className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg disabled:opacity-50"
             >
               <Sparkles className="size-4" />
-              {isVideo ? '帮我总结视频内容' : '帮我总结网页内容'}
+              {isVideo ? t('chat.summarizeVideo') : t('chat.summarizePage')}
             </button>
             {extracting && (
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Loader2 className="size-3 animate-spin" /> 正在提取页面正文…
+                <Loader2 className="size-3 animate-spin" /> {t('chat.extracting')}
               </p>
             )}
           </div>
@@ -127,7 +129,7 @@ export function UnifiedChat({
                 key={i}
                 className="rounded-md border border-dashed px-2 py-1 text-center text-[11px] text-muted-foreground"
               >
-                上文已压缩：早期对话已摘要为下方纪要，可继续追问
+                {t('chat.compressed')}
               </div>
             );
           }
@@ -164,7 +166,7 @@ export function UnifiedChat({
       {editingFrom != null && (
         <div className="flex items-center gap-1.5 border-t px-3 py-1 text-[11px] text-muted-foreground">
           <Pencil className="size-3" />
-          正在编辑此消息，Enter 重新发送（之后的对话将被移除）
+          {t('chat.editing')}
           <button
             type="button"
             className="ml-auto underline hover:text-foreground"
@@ -173,7 +175,7 @@ export function UnifiedChat({
               setInput('');
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
         </div>
       )}
@@ -189,19 +191,19 @@ export function UnifiedChat({
               send();
             }
           }}
-          placeholder="针对本页内容提问，Enter 发送"
+          placeholder={t('chat.placeholder')}
           disabled={disabled && !streaming}
           rows={2}
           className="max-h-32 min-h-9 resize-none text-sm"
         />
         {streaming ? (
-          <Button variant="secondary" size="icon-sm" aria-label="停止" onClick={onStop}>
+          <Button variant="secondary" size="icon-sm" aria-label={t('chat.stop')} onClick={onStop}>
             <Square className="size-3.5" />
           </Button>
         ) : (
           <Button
             size="icon-sm"
-            aria-label="发送"
+            aria-label={t('chat.send')}
             disabled={!input.trim() || disabled}
             onClick={send}
           >

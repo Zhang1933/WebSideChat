@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useT } from '@/lib/i18n';
 import { copyToClipboard } from '@/lib/utils';
 import type { Conversation } from '@/types';
 
@@ -22,6 +23,7 @@ export function ExtractViewerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -49,31 +51,31 @@ export function ExtractViewerDialog({
       <DialogContent className="flex max-h-[85vh] w-[92vw] max-w-2xl flex-col gap-2 p-4">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
-            提取内容（送入模型的正文）
+            {t('viewer.title')}
           </DialogTitle>
           <DialogDescription className="text-xs">
             {conversation && (
               <>
-                {conversation.title} · {conversation.content.length.toLocaleString()} 字符
-                {conversation.truncated ? '（已截断）' : ''} · 提取于{' '}
+                {conversation.title} · {conversation.content.length.toLocaleString()} {t('viewer.chars')}
+                {conversation.truncated ? t('viewer.truncated') : ''} · {t('viewer.extractedAt')}{' '}
                 {new Date(conversation.extractedAt).toLocaleString()}
               </>
             )}
           </DialogDescription>
         </DialogHeader>
         <pre className="flex-1 overflow-auto rounded-md border bg-muted/40 p-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words">
-          {conversation?.content || '（无内容）'}
+          {conversation?.content || t('viewer.empty')}
         </pre>
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={() => void copy()}>
             {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-            {copied ? '已复制' : '复制'}
+            {copied ? t('common.copied') : t('common.copy')}
           </Button>
           <Button variant="outline" size="sm" onClick={download}>
-            <Download className="size-3.5" /> 下载 .md
+            <Download className="size-3.5" /> {t('viewer.download')}
           </Button>
           <Button size="sm" onClick={() => onOpenChange(false)}>
-            关闭
+            {t('common.close')}
           </Button>
         </DialogFooter>
       </DialogContent>

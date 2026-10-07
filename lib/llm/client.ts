@@ -1,3 +1,4 @@
+import { t } from '@/lib/i18n';
 import type { ChatMessage, Provider } from '@/types';
 import { anthropicAdapter } from './anthropic';
 import { openaiChatAdapter } from './openai-chat';
@@ -19,19 +20,19 @@ export function adapterFor(provider: Provider): ProtocolAdapter {
 function mapHttpError(status: number, body: string): LlmError {
   const excerpt = body.slice(0, 500);
   if (status === 401 || status === 403) {
-    return { kind: 'auth', message: `鉴权失败（HTTP ${status}）：请检查 API Key 是否正确`, status };
+    return { kind: 'auth', message: t('err.llm.auth', status), status };
   }
   if (status === 429) {
-    return { kind: 'rate_limit', message: '请求过于频繁（HTTP 429）：请稍后重试', status };
+    return { kind: 'rate_limit', message: t('err.llm.rateLimit'), status };
   }
   if (status === 404) {
     return {
       kind: 'http',
-      message: `接口不存在（HTTP 404）：请检查 Base URL 是否正确${excerpt ? `：${excerpt}` : ''}`,
+      message: t('err.llm.notFound', status, excerpt ? `：${excerpt}` : ''),
       status,
     };
   }
-  return { kind: 'http', message: `请求失败（HTTP ${status}）${excerpt ? `：${excerpt}` : ''}`, status };
+  return { kind: 'http', message: t('err.llm.http', status, excerpt ? `：${excerpt}` : ''), status };
 }
 
 /**
@@ -51,7 +52,7 @@ export async function streamChat(
   } else if (r.status === 'empty') {
     handlers.onError({
       kind: 'parse',
-      message: '模型返回了空内容（HTTP 200 但没有任何输出），可能是服务端偶发问题，请重试',
+      message: t('err.llm.empty'),
     });
   }
   // 'handled'：错误/中止的终端回调已在 streamOnce 内发出
@@ -76,11 +77,11 @@ async function streamOnce(
     });
   } catch (err) {
     if (isAbort(err)) {
-      handlers.onError({ kind: 'aborted', message: '已停止生成' });
+      handlers.onError({ kind: 'aborted', message: t('err.llm.stopped') });
     } else {
       handlers.onError({
         kind: 'network',
-        message: `网络错误：${(err as Error).message}。若连接本机 Ollama，请设置环境变量 OLLAMA_ORIGINS=chrome-extension://* 后重启 Ollama`,
+        message: t('err.llm.network', (err as Error).message),
       });
     }
     return { status: 'handled' };
@@ -170,9 +171,9 @@ async function streamOnce(
     return { status: 'ok', full };
   } catch (err) {
     if (isAbort(err)) {
-      handlers.onError({ kind: 'aborted', message: '已停止生成' });
+      handlers.onError({ kind: 'aborted', message: t('err.llm.stopped') });
     } else {
-      handlers.onError({ kind: 'network', message: `流式传输中断：${(err as Error).message}` });
+      handlers.onError({ kind: 'network', message: t('err.llm.streamBroken', (err as Error).message) });
     }
     return { status: 'handled' };
   }

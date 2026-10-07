@@ -6,7 +6,9 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'WebSideChat',
-    description: '用你喜欢的AI与网页、视频对话。',
+    // 描述经 Chrome i18n 按浏览器语言显示（public/_locales/{en,zh_CN}）
+    default_locale: 'en',
+    description: '__MSG_extDescription__',
     // side_panel 与 sidePanel 权限由 entrypoints/sidepanel 自动生成，勿重复声明
     // tabs：读取任意标签页 URL——检测"任意扩展的 options 页自动收起侧边栏"需要
     // （chrome-extension:// 源无法通过 host_permissions 授予，仅 tabs 权限可见）

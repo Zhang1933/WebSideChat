@@ -4,9 +4,9 @@
 
 # WebSideChat
 
-### Chat with any web page or video — powered by the AI you love.
+### Chat with any web page or video using your favorite AI.
 
-**Extract, summarize, and ask anything in one click — zero ads, pure insight.**
+**Extract, summarize, and explore in one click. Zero ads, pure insight.**
 
 English | [简体中文](README_ZH.md)
 

@@ -127,6 +127,13 @@ export default defineBackground(() => {
     if (changeInfo.status === 'complete') void syncSidePanelForTab(tabId, tab.url);
   });
 
+  // Chrome 禁止任何扩展注入的 https 页（Web Store 域名）：
+  // 点击图标时须同步跳过注入分支、直接走原生侧边栏（await 会丢用户手势）
+  const noInjectUrls = [
+    /^https:\/\/chromewebstore\.google\.com\//,
+    /^https:\/\/chrome\.google\.com\//, // 旧版商店域名，现会重定向
+  ];
+
   // 工具栏图标：优先切换当前页的注入式抽屉（标签独立）；
   // 不可注入页（chrome://、商店页、未刷新的旧页面）回退为打开原生侧边栏——
   // 关键：sidePanel.open 必须在点击事件的同步段内调用，任何 await 都会丢用户手势。
@@ -147,8 +154,10 @@ export default defineBackground(() => {
     }
     // tabs 权限下 URL 同步可见：http(s) 页 → 按需注入抽屉（标签独立），
     // 覆盖"扩展重载后旧页面脚本失效"的场景，不再回退窗口级的原生面板；
-    // 图标本次点击的 activeTab 恰好覆盖注入权限。
-    if (/^https?:/.test(tab.url ?? '')) {
+    // 图标本次点击的 activeTab 恰好覆盖注入权限。商店页虽是 https 但不可注入，
+    // 须同步排除后落到原生侧边栏分支。
+    const url = tab.url ?? '';
+    if (/^https?:/.test(url) && !noInjectUrls.some((re) => re.test(url))) {
       void drawerOpenItem(tabId)
         .setValue(true) // 注入前先置开 → 脚本 get-state 初始化即展开
         .then(() =>

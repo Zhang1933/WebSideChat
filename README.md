@@ -10,7 +10,7 @@
 
 English | [简体中文](README_ZH.md)
 
-**[Features](#features) · [Screenshots](#screenshots) · [Manual Installation](#manual-installation) · [Plugin Configuration](#plugin-configuration) · [Development](#development)**
+**[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Plugin Configuration](#plugin-configuration) · [Development](#development)**
 
 </div>
 
@@ -35,7 +35,14 @@ WebSideChat answers questions about whatever you're reading or watching.
 | <img src="docs/en-youtube-preview.png" width="320" alt="YouTube video summary"> | <img src="docs/en-bilibili-preview.png" width="320" alt="Bilibili video summary"> | <img src="docs/en-web-preview.png" width="320" alt="Web page summary"> |
 
 
-## Manual Installation
+## Install
+
+[<img src="https://raw.githubusercontent.com/alrra/browser-logos/90fdf03c/src/chrome/chrome.svg" width="48" alt="Chrome" valign="middle">][link-chrome] [<img valign="middle" src="https://img.shields.io/chrome-web-store/v/kcpcdgehncnhjlnajoabfokmmgicfdpp.svg?label=%20">][link-chrome] and other Chromium browsers
+
+[link-chrome]: https://chromewebstore.google.com/detail/websidechat/kcpcdgehncnhjlnajoabfokmmgicfdpp
+
+
+## <a id="manual-installation"></a>Manual Installation
 
 1. Download the latest `websidechat-vX.Y.Z-chrome.zip` from the [Releases](https://github.com/Zhang1933/WebSideChat/releases) page
 2. Unzip it to any folder (keep the folder — don't delete it)

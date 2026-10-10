@@ -10,7 +10,7 @@
 
 [English](README.md) | 简体中文
 
-**[功能](#features) · [界面预览](#screenshots) · [手动安装](#manual-installation) · [插件配置](#plugin-configuration) · [开发](#development)**
+**[功能](#features) · [界面预览](#screenshots) · [安装](#install) · [插件配置](#plugin-configuration) · [开发](#development)**
 
 </div>
 
@@ -33,6 +33,13 @@ WebSideChat，回答你网页上、视频中小小的疑问。
 | 油管总结 | B站总结 | 网页总结 |
 | :---: | :---: | :---: |
 | <img src="docs/zh-youtube-preview.png" width="320" alt="YouTube 视频总结"> | <img src="docs/zh-bilibili-preview.png" width="320" alt="B站视频总结"> | <img src="docs/zh-web-preview.png" width="320" alt="网页总结"> |
+
+## <a id="install"></a>自动安装
+
+[<img src="https://raw.githubusercontent.com/alrra/browser-logos/90fdf03c/src/chrome/chrome.svg" width="48" alt="Chrome" valign="middle">][link-chrome] [<img valign="middle" src="https://img.shields.io/chrome-web-store/v/kcpcdgehncnhjlnajoabfokmmgicfdpp.svg?label=%20">][link-chrome] 及其他 Chromium 内核浏览器
+
+[link-chrome]: https://chromewebstore.google.com/detail/websidechat/kcpcdgehncnhjlnajoabfokmmgicfdpp
+
 
 ## <a id="manual-installation"></a>手动安装
 

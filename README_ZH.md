@@ -36,7 +36,7 @@ WebSideChat，回答你网页上、视频中小小的疑问。
 
 ## <a id="install"></a>自动安装
 
-[<img src="https://raw.githubusercontent.com/alrra/browser-logos/90fdf03c/src/chrome/chrome.svg" width="48" alt="Chrome" valign="middle">][link-chrome] [<img valign="middle" src="https://img.shields.io/chrome-web-store/v/kcpcdgehncnhjlnajoabfokmmgicfdpp.svg?label=%20">][link-chrome] 及其他 Chromium 内核浏览器
+[<img src="https://raw.githubusercontent.com/alrra/browser-logos/90fdf03c/src/chrome/chrome.svg" width="48" alt="Chrome" valign="middle">][link-chrome] [<img valign="middle" src="https://img.shields.io/chrome-web-store/v/kcpcdgehncnhjlnajoabfokmmgicfdpp.svg?label=%20&color=blue">][link-chrome] 及其他 Chromium 内核浏览器
 
 [link-chrome]: https://chromewebstore.google.com/detail/websidechat/kcpcdgehncnhjlnajoabfokmmgicfdpp
 

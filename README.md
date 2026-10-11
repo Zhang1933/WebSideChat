@@ -37,9 +37,10 @@ WebSideChat answers questions about whatever you're reading or watching.
 
 ## Install
 
-[<img src="https://raw.githubusercontent.com/alrra/browser-logos/90fdf03c/src/chrome/chrome.svg" width="48" alt="Chrome" valign="middle">][link-chrome] [<img valign="middle" src="https://img.shields.io/chrome-web-store/v/kcpcdgehncnhjlnajoabfokmmgicfdpp.svg?label=%20&color=blue">][link-chrome] and other Chromium browsers
+<a href="https://chromewebstore.google.com/detail/websidechat/kcpcdgehncnhjlnajoabfokmmgicfdpp">
+  <img src="docs/chrome-web-store-badge.png" alt="Chrome Web Store" />
+</a>
 
-[link-chrome]: https://chromewebstore.google.com/detail/websidechat/kcpcdgehncnhjlnajoabfokmmgicfdpp
 
 
 ## <a id="manual-installation"></a>Manual Installation

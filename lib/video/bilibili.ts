@@ -78,6 +78,32 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
           }
           return (origOpen as unknown as (...a: unknown[]) => void).apply(this, [method, url, ...rest]);
         };
+        // 静默字幕操作：模拟点击期间隐藏 toast 与画面上的字幕渲染层——
+        // 字幕轨道虽被短暂开启以触发拉取，但全程不渲染、无提示，用户无感
+        const silentStyle = document.createElement('style');
+        silentStyle.textContent = [
+          // 切换提示（"字幕已切换至中文"等），类名实测自 bpx 播放器 DOM
+          '.bpx-player-toast-auto,.bpx-player-toast-row',
+          // 字幕正文渲染层（多写几个候选，命不中顶多闪现、无副作用）
+          '.bpx-player-subtitle,.bpx-player-subtitle-wrap,.bpx-player-video-subtitle',
+        ].join(',') + '{display:none!important}';
+        document.documentElement.appendChild(silentStyle);
+
+        // toast 刺客：toast 出生后存活 2-3s，纯 CSS 隐藏存在"样式先撤、toast
+        // 还活着"的时序竞争。观察者把窗口期内新建的 toast 节点直接移出 DOM——
+        // 节点不存在，就永远没有竞争。作用域限定播放器容器，避免全页开销
+        const TOAST_SEL = '.bpx-player-toast-auto,.bpx-player-toast-row';
+        const toastMo = new MutationObserver((muts) => {
+          for (const m of muts) {
+            for (const n of m.addedNodes) {
+              if (!(n instanceof HTMLElement)) continue;
+              if (n.matches(TOAST_SEL) || n.querySelector(TOAST_SEL)) n.remove();
+            }
+          }
+        });
+        const playerRoot = document.querySelector('.bpx-player') ?? document.documentElement;
+        toastMo.observe(playerRoot, { childList: true, subtree: true });
+
         try {
           // 字幕设置面板：语言项（主字幕区优先）+ 关闭开关（bpx 播放器 DOM）
           const items = Array.from(
@@ -86,25 +112,42 @@ export async function extractBilibiliFromPanel(tabId: number): Promise<ExtractRe
           const zhItems = items.filter((el) => /(^|-)zh/i.test(el.dataset.lan ?? ''));
           // 手动上传（非 ai-）质量高于 AI 生成
           const zhItem = zhItems.find((el) => !/^ai-/i.test(el.dataset.lan ?? '')) ?? zhItems[0];
-          const closeSwitch = document.querySelector(
-            '.bpx-player-ctrl-subtitle-close-switch',
-          ) as HTMLElement | null;
 
           if (zhItem) {
             capturedLan = zhItem.dataset.lan ?? null;
+            // 面板可能在捕获等待期间重渲染，关闭开关每次现查、不持旧引用
+            const closeSwitchNow = () =>
+              document.querySelector('.bpx-player-ctrl-subtitle-close-switch') as
+                | HTMLElement
+                | null;
             // 关闭开关带 bpx-state-active = 字幕当前关闭
-            const wasOff = closeSwitch?.classList.contains('bpx-state-active') ?? true;
-            // 原本开着 → 先关再选同一轨，强制播放器重新拉取（缓存不重复请求）
+            const isOff = (sw: HTMLElement | null) => !!sw?.classList.contains('bpx-state-active');
+            const wasOff = isOff(closeSwitchNow());
+            // 用户原本选中的语言轨：抓完还原，不改变用户选择（原本开着的非中文轨）
+            const origItem =
+              items.find((el) => el.classList.contains('bpx-state-active')) ?? null;
+            // 原本开着 → 先关再选中文轨，强制播放器重新拉取（缓存不重复请求）。
+            // 注意"开"必须点语言轨而非开关：纯开关走内存缓存不发请求，抓不到包
             if (!wasOff) {
-              closeSwitch?.click();
+              closeSwitchNow()?.click();
               await sleep(250);
             }
             zhItem.click();
-            for (let i = 0; i < 20 && !capturedBody; i++) await sleep(200);
-            // 原本关着 → 选完再关回去，还原用户状态
-            if (wasOff) closeSwitch?.click();
+            // 100ms 轮询：抓到立即往下走，字幕暴露窗口越短越好（渲染层已被 CSS 隐藏）
+            for (let i = 0; i < 40 && !capturedBody; i++) await sleep(100);
+            // 原本关着 → 立即关回去；原本开着且原轨非中文 → 把用户的选择点回去。
+            // 均只快速点一次、不校验不重试：校验依据的 active 类语义若与预期
+            // 相反，重试反而会把字幕来回切换，比偶尔没还原更糟
+            if (wasOff) closeSwitchNow()?.click();
+            else if (origItem && origItem !== zhItem) origItem.click();
           }
         } finally {
+          // 最后一次还原点击的 toast 由播放器异步创建：观察者会在其出生瞬间
+          // 删掉它，故延迟 2s 再统一撤除样式与观察者（不阻塞提取结果返回）
+          setTimeout(() => {
+            silentStyle.remove();
+            toastMo.disconnect();
+          }, 2000);
           window.fetch = origFetch;
           XMLHttpRequest.prototype.open = origOpen;
         }

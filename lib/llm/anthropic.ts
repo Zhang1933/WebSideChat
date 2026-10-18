@@ -13,6 +13,8 @@ export const anthropicAdapter: ProtocolAdapter = {
         'Content-Type': 'application/json',
         'x-api-key': provider.apiKey,
         'anthropic-version': '2023-06-01',
+        // Claude Code 的 effort 参数需要此 beta 头（effort.md 文档）
+        'anthropic-beta': 'effort-2025-11-24',
       },
       body: {
         model: stripContextSuffix(provider.model),
@@ -21,6 +23,10 @@ export const anthropicAdapter: ProtocolAdapter = {
         // 摘要输出较长（视频摘要含大量时间戳链接），4096 会中途截断
         max_tokens: req.maxTokens ?? 16384,
         stream: true,
+        // Claude Code 同款：output_config.effort 控制输出力度（low/medium/high），
+        // 配合 anthropic-beta: effort-2025-11-24 头。GLM 等兼容端点部分模型始终
+        // 思考、不支持 thinking.type=disabled（HTTP 1210），此参数是官方降档方式
+        output_config: { effort: 'low' },
         ...(req.temperature != null ? { temperature: req.temperature } : {}),
       },
     };

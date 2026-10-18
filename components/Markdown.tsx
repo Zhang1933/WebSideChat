@@ -1,10 +1,20 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { popupTabIdFromUrl } from '@/lib/tabs';
 import { cn } from '@/lib/utils';
 import { expandTimestampLinks, isVideoPageUrl } from '@/lib/video/pages';
 
 /** 是否为抽屉模式（运行在注入 iframe 中） */
 const IN_DRAWER = typeof window !== 'undefined' && window.self !== window.top;
+
+/** seek 脚本：注入目标标签页，跳转 <video> 到指定秒数 */
+function seekScript(s: number) {
+  const video = document.querySelector('video');
+  if (video) {
+    video.currentTime = s;
+    video.play().catch(() => {});
+  }
+}
 
 /**
  * 拦截视频时间戳链接点击：仅在视频页面板中生效。
@@ -36,7 +46,22 @@ function makeClickHandler(isVideoPage: boolean) {
     if (IN_DRAWER) {
       // 抽屉模式：postMessage 通知 content script seek 当前页面的 <video>
       window.parent.postMessage({ type: 'websidechat-drawer', action: 'seek', seconds }, '*');
-    } else {
+      return;
+    }
+
+    // 弹窗模式：URL 带 tabId → 直接对源标签页注入 seek（弹窗自身没有可查的 tab）
+    const popupTabId = popupTabIdFromUrl();
+    if (popupTabId != null) {
+      void browser.scripting
+        .executeScript({
+          target: { tabId: popupTabId },
+          func: seekScript,
+          args: [seconds],
+        })
+        .catch(() => window.open(href, '_blank'));
+      return;
+    }
+
     // 原生侧边栏：对当前激活标签页注入 seek 脚本
     void browser.tabs
       .query({ active: true, currentWindow: true })
@@ -44,13 +69,7 @@ function makeClickHandler(isVideoPage: boolean) {
         if (tab?.id != null) {
           return browser.scripting.executeScript({
             target: { tabId: tab.id },
-            func: (s: number) => {
-              const video = document.querySelector('video');
-              if (video) {
-                video.currentTime = s;
-                video.play().catch(() => {});
-              }
-            },
+            func: seekScript,
             args: [seconds],
           });
         }
@@ -59,7 +78,6 @@ function makeClickHandler(isVideoPage: boolean) {
         // 不可注入页（chrome:// 等）→ 回退为新标签页打开
         window.open(href, '_blank');
       });
-    }
   };
 }
 

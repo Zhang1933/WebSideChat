@@ -5,7 +5,7 @@ import { videoSystemPrompt } from '@/lib/video/prompts';
 
 /** 内置系统提示词（网页场景的角色设定；语言指令与正文在其后拼接） */
 export const DEFAULT_WEB_SYSTEM_PROMPT =
-  '你是网页摘要助手。用户会提供网页正文，请严格基于所提供内容回答问题，不要编造之外的信息。\n内容为 Markdown，引用数据时以其结构为准。';
+  '你是网页内容助手。用户会提供网页正文，请严格基于所提供内容回答问题，不要编造之外的信息。\n内容为 Markdown，引用数据时以其结构为准。';
 
 /** 兼容旧引用 */
 export const DEFAULT_SYSTEM_PROMPT = DEFAULT_WEB_SYSTEM_PROMPT;

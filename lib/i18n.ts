@@ -284,6 +284,10 @@ const DICT: Record<string, [string, string]> = {
   ],
 
   'app.engineNotReady': ['生成引擎未就绪（offscreen 无应答），请重试', 'Generation engine not ready (no offscreen response) — retry'],
+  'app.turnTimeout': [
+    '上一次生成超过 2 分钟未返回，可能已中断。请重新发送提问。',
+    'The last generation timed out after 2 minutes and may have been interrupted. Please resend your question.',
+  ],
 
   // ---- 回合占位（offscreen）----
   'turn.stoppedPlaceholder': ['*（已停止，未生成内容）*', '*(stopped, nothing generated)*'],

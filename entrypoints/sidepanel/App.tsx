@@ -153,7 +153,28 @@ export default function App() {
     let cancelled = false;
     conversationsItem.getValue().then((all) => {
       if (cancelled) return;
-      setConversation(pageKey ? (all[pageKey] ?? null) : null);
+      const conv = pageKey ? (all[pageKey] ?? null) : null;
+      setConversation(conv);
+      // 恢复在途流指示：末条消息是 user 且距上次更新 < 2 分钟 → 显示转圈。
+      // 覆盖"弹出独立窗口 / 重开面板时 AI 正在生成"的场景——本上下文没调过
+      // runTurn 所以 streamTexts 为空，但 offscreen 引擎里回合确实在跑，
+      // 后续 turn:delta/done 事件到达后自然接管。
+      // 超时 2 分钟：AI 已完成但 turn:done 丢失（offscreen 意外销毁等）时
+      // 避免永久转圈——超过 2 分钟视为回合已死，不再显示转圈
+      if (
+        conv &&
+        conv.messages.length > 0 &&
+        conv.messages[conv.messages.length - 1]?.role === 'user'
+      ) {
+        if (Date.now() - conv.updatedAt < 2 * 60_000) {
+          setStreamTexts((prev) =>
+            conv.pageKey in prev ? prev : { ...prev, [conv.pageKey]: '' },
+          );
+        } else {
+          // 超时：回合已死（AI 完成但事件丢失 / offscreen 意外销毁），提示用户重发
+          setError(t('app.turnTimeout'));
+        }
+      }
     });
     // 切页/关闭面板都不中断生成：回合引擎在 Offscreen Document 中常驻运行
     return () => {

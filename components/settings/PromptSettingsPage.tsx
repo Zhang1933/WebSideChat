@@ -79,6 +79,7 @@ export function PromptSettingsPage() {
 
   const section = (
     label: string,
+    hintKey: string,
     sumId: string,
     sumValue: string,
     sumDefault: string,
@@ -88,6 +89,7 @@ export function PromptSettingsPage() {
       <h3 className="mb-3 text-sm font-semibold">{label}</h3>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={sumId}>{t('prompts.instruction')}</Label>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t(hintKey)}</p>
         <Textarea
           id={sumId}
           value={sumValue}
@@ -111,11 +113,13 @@ export function PromptSettingsPage() {
     <div className="flex flex-col gap-4">
       {section(
         t('prompts.web'),
+        'prompts.instructionHint.web',
         'webSummary', webSummary,
         DEFAULT_WEB_SUMMARY_PROMPTS[uiLang], setWebSummary,
       )}
       {section(
         t('prompts.video'),
+        'prompts.instructionHint.video',
         'videoSummary', videoSummary,
         DEFAULT_VIDEO_SUMMARY_PROMPTS[uiLang], setVideoSummary,
       )}

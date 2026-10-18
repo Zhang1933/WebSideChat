@@ -217,6 +217,14 @@ const DICT: Record<string, [string, string]> = {
   'prompts.web': ['📄 网页', '📄 Web'],
   'prompts.video': ['▶️ 视频', '▶️ Video'],
   'prompts.instruction': ['摘要指令', 'Summary instruction'],
+  'prompts.instructionHint.web': [
+    '点击「帮我总结网页内容」后，此指令将作为用户消息发送给模型。',
+    'When you click "Summarize this page", this instruction is sent to the model as the user message.',
+  ],
+  'prompts.instructionHint.video': [
+    '点击「帮我总结视频内容」后，此指令将作为用户消息发送给模型。',
+    'When you click "Summarize this video", this instruction is sent to the model as the user message.',
+  ],
   'prompts.restore': ['恢复默认', 'Restore default'],
 
   // ---- options 整页 ----

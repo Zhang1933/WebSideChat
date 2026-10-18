@@ -53,33 +53,24 @@ export default function App() {
       return;
     }
     // 原生侧边栏：close({tabId}) 只能关 tab 专属面板（我们 open() 打开的）；
-    // 用户从浏览器 UI 打开的是窗口级面板 → close 失败（同步 TypeError 或异步 reject）
-    // → 全局禁用再立即恢复，Chrome 收起已打开的本扩展面板
+    // 用户从浏览器 UI 打开的是窗口级面板 → close 会失败，此时不强行收起
+    // （setOptions 全局禁用的副作用太大：恢复不彻底会导致后续 open 全部被拒）
     void (async () => {
-      const sp = browser.sidePanel as unknown as {
-        close?: (o: { tabId?: number }) => Promise<void>;
-        setOptions: (o: { enabled?: boolean; path?: string }) => Promise<void>;
-      };
       try {
-        if (tab.id != null && sp.close) {
-          await sp.close({ tabId: tab.id });
-          console.log('[WebSideChat] sidePanel.close 成功');
-          return;
+        if (tab.id != null) {
+          const close = (browser.sidePanel as unknown as {
+            close?: (o: { tabId?: number }) => Promise<void>;
+          }).close;
+          if (close) {
+            await close({ tabId: tab.id });
+            console.log('[WebSideChat] sidePanel.close 成功');
+          }
         }
       } catch (e) {
         console.log(
-          '[WebSideChat] sidePanel.close 失败（窗口级面板）:',
+          '[WebSideChat] sidePanel.close 失败（窗口级面板，请手动关闭）:',
           e instanceof Error ? e.message : e,
         );
-      }
-      // 兜底：全局禁用 → Chrome 收起面板 → 300ms 后恢复
-      try {
-        await sp.setOptions({ enabled: false });
-        await new Promise((r) => setTimeout(r, 300));
-        await sp.setOptions({ enabled: true, path: 'sidepanel.html' });
-        console.log('[WebSideChat] 全局禁用→恢复完成，面板应收起');
-      } catch (e) {
-        console.warn('[WebSideChat] setOptions 失败:', e instanceof Error ? e.message : e);
       }
     })();
   }, [tab.id]);

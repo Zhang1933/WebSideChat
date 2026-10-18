@@ -26,11 +26,63 @@ import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation
 
 /** 抽屉模式：应用运行在注入 iframe 中（window.top ≠ window.self） */
 const IN_DRAWER = typeof window !== 'undefined' && window.self !== window.top;
+/** 弹出独立窗口模式：URL 带 tabId 参数（windows.create 打开的 popup） */
+const IS_POPUP = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('tabId');
 
 export default function App() {
   const t = useT();
   const tab = useActiveTab();
   const pageKey = tab.url ? pageKeyOf(tab.url) : null;
+
+  /** 弹出独立窗口：携带当前 tabId 打开 sidepanel.html，锁定该标签页上下文；
+   *  同时关闭来源侧边栏（抽屉 → postMessage 收起；原生面板 → close 失败则全局禁用恢复） */
+  const openPopup = useCallback(() => {
+    const url = browser.runtime.getURL(
+      `/sidepanel.html${tab.id != null ? `?tabId=${tab.id}` : ''}`,
+    );
+    void browser.windows.create({
+      url,
+      type: 'popup',
+      width: 440,
+      height: 720,
+    });
+    console.log('[WebSideChat] openPopup:', { inDrawer: IN_DRAWER, tabId: tab.id });
+    // 抽屉模式：通知 content script 收起本页抽屉
+    if (IN_DRAWER) {
+      window.parent.postMessage({ type: 'websidechat-drawer', action: 'close' }, '*');
+      return;
+    }
+    // 原生侧边栏：close({tabId}) 只能关 tab 专属面板（我们 open() 打开的）；
+    // 用户从浏览器 UI 打开的是窗口级面板 → close 失败（同步 TypeError 或异步 reject）
+    // → 全局禁用再立即恢复，Chrome 收起已打开的本扩展面板
+    void (async () => {
+      const sp = browser.sidePanel as unknown as {
+        close?: (o: { tabId?: number }) => Promise<void>;
+        setOptions: (o: { enabled?: boolean; path?: string }) => Promise<void>;
+      };
+      try {
+        if (tab.id != null && sp.close) {
+          await sp.close({ tabId: tab.id });
+          console.log('[WebSideChat] sidePanel.close 成功');
+          return;
+        }
+      } catch (e) {
+        console.log(
+          '[WebSideChat] sidePanel.close 失败（窗口级面板）:',
+          e instanceof Error ? e.message : e,
+        );
+      }
+      // 兜底：全局禁用 → Chrome 收起面板 → 300ms 后恢复
+      try {
+        await sp.setOptions({ enabled: false });
+        await new Promise((r) => setTimeout(r, 300));
+        await sp.setOptions({ enabled: true, path: 'sidepanel.html' });
+        console.log('[WebSideChat] 全局禁用→恢复完成，面板应收起');
+      } catch (e) {
+        console.warn('[WebSideChat] setOptions 失败:', e instanceof Error ? e.message : e);
+      }
+    })();
+  }, [tab.id]);
 
   // ---- 全局 pin 状态（新标签页自动展开抽屉；抽屉与原生面板共用同一个开关） ----
   const [drawerPinned, setDrawerPinned] = useState(false);
@@ -324,9 +376,11 @@ export default function App() {
         providers={providerList}
         currentProvider={currentProvider}
         inDrawer={IN_DRAWER}
+        isPopup={IS_POPUP}
         drawerPinned={drawerPinned}
         onToggleDrawerPin={toggleDrawerPin}
         onCloseDrawer={closeDrawer}
+        onOpenPopup={openPopup}
         onOpenSettings={() => openProviderManager()}
       />
       <PageBar

@@ -49,6 +49,8 @@ const DICT: Record<string, [string, string]> = {
   'header.manage': ['管理供应商…', 'Manage providers…'],
   'header.pinOn': ['已固定：新标签页自动展开侧边栏（点击取消）', 'Pinned: auto-open on new tabs (click to unpin)'],
   'header.pinOff': ['固定：新标签页自动展开侧边栏', 'Pin: auto-open sidebar on new tabs'],
+  'header.popup': ['弹出独立窗口', 'Open in standalone window'],
+  'header.popupAria': ['弹出独立窗口', 'Open in standalone window'],
   'header.pinOnAria': ['取消自动展开：新标签页不再默认打开侧边栏', 'Disable auto-open on new tabs'],
   'header.pinOffAria': ['新标签页自动展开侧边栏', 'Auto-open sidebar on new tabs'],
   'header.closeDrawer': ['关闭本页抽屉', 'Close drawer on this tab'],

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Pin, PinOff, Settings, X } from 'lucide-react';
+import { Check, ChevronDown, ExternalLink, Pin, PinOff, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,19 +21,24 @@ export function Header({
   providers,
   currentProvider,
   inDrawer,
+  isPopup = false,
   drawerPinned,
   onToggleDrawerPin,
   onCloseDrawer,
+  onOpenPopup,
   onOpenSettings,
 }: {
   providers: Provider[];
   currentProvider: Provider | null;
   /** 是否运行在注入式抽屉（iframe）中 */
   inDrawer: boolean;
+  /** 是否为弹出独立窗口（popup）：隐藏弹出与 pin 按钮 */
+  isPopup?: boolean;
   /** 抽屉模式：全局 pin 状态（新标签页自动展开） */
   drawerPinned: boolean;
   onToggleDrawerPin: () => void;
   onCloseDrawer: () => void;
+  onOpenPopup: () => void;
   onOpenSettings: () => void;
 }) {
   const t = useT();
@@ -85,19 +90,32 @@ export function Header({
       </DropdownMenu>
 
       <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={drawerPinned ? t('header.pinOnAria') : t('header.pinOffAria')}
-          title={drawerPinned ? t('header.pinOn') : t('header.pinOff')}
-          onClick={onToggleDrawerPin}
-        >
-          {drawerPinned ? (
-            <Pin className="size-4 fill-current text-primary" />
-          ) : (
-            <PinOff className="size-4" />
-          )}
-        </Button>
+        {!isPopup && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('header.popupAria')}
+            title={t('header.popup')}
+            onClick={onOpenPopup}
+          >
+            <ExternalLink className="size-4" />
+          </Button>
+        )}
+        {!isPopup && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={drawerPinned ? t('header.pinOnAria') : t('header.pinOffAria')}
+            title={drawerPinned ? t('header.pinOn') : t('header.pinOff')}
+            onClick={onToggleDrawerPin}
+          >
+            {drawerPinned ? (
+              <Pin className="size-4 fill-current text-primary" />
+            ) : (
+              <PinOff className="size-4" />
+            )}
+          </Button>
+        )}
         {inDrawer && (
           <Button
             variant="ghost"

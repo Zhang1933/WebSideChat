@@ -89,10 +89,13 @@ function makeClickHandler(isVideoPage: boolean) {
 export function Markdown({
   text,
   className,
+  style,
   videoUrl = null,
 }: {
   text: string;
   className?: string;
+  /** 行内样式：内联 fontSize 覆盖 prose-sm 的字号，prose 内部均为 em 相对单位会随之缩放 */
+  style?: React.CSSProperties;
   /** 当前会话的视频页 URL（YouTube/B 站）；占位链接展开与点击 seek 都依赖它 */
   videoUrl?: string | null;
 }) {
@@ -102,6 +105,7 @@ export function Markdown({
         'prose prose-sm dark:prose-invert max-w-none break-words prose-headings:mb-1 prose-headings:mt-3 prose-p:my-1.5 prose-li:my-0.5 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none',
         className,
       )}
+      style={style}
       onClick={makeClickHandler(isVideoPageUrl(videoUrl))}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{expandTimestampLinks(text, videoUrl)}</ReactMarkdown>

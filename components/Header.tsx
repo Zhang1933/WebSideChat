@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ExternalLink, Pin, PinOff, Settings, X } from 'lucide-react';
+import { Check, ChevronDown, ExternalLink, Pin, PinOff, RotateCcw, Settings, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,7 +10,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useT } from '@/lib/i18n';
 import { currentProviderIdItem } from '@/lib/storage';
-import type { Provider } from '@/types';
+import {
+  DEFAULT_CHAT_FONT_SIZE,
+  MAX_CHAT_FONT_SIZE,
+  MIN_CHAT_FONT_SIZE,
+  type Provider,
+} from '@/types';
 import { ProviderIcon } from './providers/ProviderIcon';
 
 /**
@@ -23,6 +28,10 @@ export function Header({
   inDrawer,
   isPopup = false,
   drawerPinned,
+  chatFontSize,
+  onZoomIn,
+  onZoomOut,
+  onResetFont,
   onToggleDrawerPin,
   onCloseDrawer,
   onOpenPopup,
@@ -36,6 +45,12 @@ export function Header({
   isPopup?: boolean;
   /** 抽屉模式：全局 pin 状态（新标签页自动展开） */
   drawerPinned: boolean;
+  /** 对话字体大小（px，已含默认值）：控制按钮的提示文案与到达上下限时的禁用 */
+  chatFontSize: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  /** 恢复默认字号 */
+  onResetFont: () => void;
   onToggleDrawerPin: () => void;
   onCloseDrawer: () => void;
   onOpenPopup: () => void;
@@ -90,6 +105,37 @@ export function Header({
       </DropdownMenu>
 
       <div className="flex items-center gap-1">
+        {/* 对话字体放大/缩小（所有模式可见；到达上下限后禁用） */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('header.zoomOut', chatFontSize)}
+          title={t('header.zoomOut', chatFontSize)}
+          disabled={chatFontSize <= MIN_CHAT_FONT_SIZE}
+          onClick={onZoomOut}
+        >
+          <ZoomOut className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('header.zoomIn', chatFontSize)}
+          title={t('header.zoomIn', chatFontSize)}
+          disabled={chatFontSize >= MAX_CHAT_FONT_SIZE}
+          onClick={onZoomIn}
+        >
+          <ZoomIn className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('header.zoomReset', DEFAULT_CHAT_FONT_SIZE)}
+          title={t('header.zoomReset', DEFAULT_CHAT_FONT_SIZE)}
+          disabled={chatFontSize === DEFAULT_CHAT_FONT_SIZE}
+          onClick={onResetFont}
+        >
+          <RotateCcw className="size-4" />
+        </Button>
         {!isPopup && (
           <Button
             variant="ghost"

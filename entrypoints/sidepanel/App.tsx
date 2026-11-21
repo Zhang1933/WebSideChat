@@ -15,6 +15,7 @@ import {
   currentProviderIdItem,
   persistConversation,
   providersItem,
+  saveSettings,
   settingsItem,
 } from '@/lib/storage';
 import { defaultUiLang, setUiLang, t, useT } from '@/lib/i18n';
@@ -22,7 +23,16 @@ import { useActiveTab } from '@/lib/tabs';
 import { ensureOffscreenReady, type TurnMessage } from '@/lib/turnMessages';
 import { contentBudgetChars, pageKeyOf } from '@/lib/utils';
 import { isVideoPageUrl } from '@/lib/video/pages';
-import { DEFAULT_SETTINGS, type AppSettings, type ChatMessage, type Conversation, type Provider } from '@/types';
+import {
+  DEFAULT_CHAT_FONT_SIZE,
+  DEFAULT_SETTINGS,
+  MAX_CHAT_FONT_SIZE,
+  MIN_CHAT_FONT_SIZE,
+  type AppSettings,
+  type ChatMessage,
+  type Conversation,
+  type Provider,
+} from '@/types';
 
 /** 抽屉模式：应用运行在注入 iframe 中（window.top ≠ window.self） */
 const IN_DRAWER = typeof window !== 'undefined' && window.self !== window.top;
@@ -127,6 +137,21 @@ export default function App() {
 
   const providerList = Object.values(providers).sort((a, b) => a.createdAt - b.createdAt);
   const currentProvider = currentProviderId ? (providers[currentProviderId] ?? null) : null;
+
+  // ---- 对话字体（写入 settings，抽屉/面板/弹窗经 storage.watch 实时联动） ----
+  const chatFontSize = settings.chatFontSize ?? DEFAULT_CHAT_FONT_SIZE;
+  const adjustChatFont = useCallback(
+    (delta: number) => {
+      const next = Math.min(MAX_CHAT_FONT_SIZE, Math.max(MIN_CHAT_FONT_SIZE, chatFontSize + delta));
+      if (next !== chatFontSize) void saveSettings({ chatFontSize: next });
+    },
+    [chatFontSize],
+  );
+  const resetChatFont = useCallback(() => {
+    if (chatFontSize !== DEFAULT_CHAT_FONT_SIZE) {
+      void saveSettings({ chatFontSize: DEFAULT_CHAT_FONT_SIZE });
+    }
+  }, [chatFontSize]);
 
   // ---- 会话（按 pageKey 加载/切换） ----
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -390,6 +415,10 @@ export default function App() {
         inDrawer={IN_DRAWER}
         isPopup={IS_POPUP}
         drawerPinned={drawerPinned}
+        chatFontSize={chatFontSize}
+        onZoomIn={() => adjustChatFont(1)}
+        onZoomOut={() => adjustChatFont(-1)}
+        onResetFont={resetChatFont}
         onToggleDrawerPin={toggleDrawerPin}
         onCloseDrawer={closeDrawer}
         onOpenPopup={openPopup}
@@ -469,6 +498,7 @@ export default function App() {
             streaming={conversation != null && conversation.pageKey in streamTexts}
             streamText={conversation ? (streamTexts[conversation.pageKey] ?? '') : ''}
             disabled={!tab.url || (pageKey != null && pageKey in streamTexts) || extracting}
+            fontSize={chatFontSize}
             onPresetSummary={generateSummaryOnly}
             onSend={sendQuestion}
             onStop={stopStreaming}

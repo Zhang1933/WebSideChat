@@ -97,9 +97,17 @@ export interface AppSettings {
   customVideoSystemPrompt?: string;
   /** 视频场景自定义摘要指令；空 = 按语言取内置默认 */
   customVideoSummaryPrompt?: string;
+  /** 对话字体大小（px）：顶栏放大/缩小按钮调整，用户气泡与助手 Markdown 共用 */
+  chatFontSize?: number;
 }
+
+/** 对话字体默认 14px（对齐 text-sm / prose-sm 的 0.875rem）；步进 1px，范围上下限 */
+export const DEFAULT_CHAT_FONT_SIZE = 14;
+export const MIN_CHAT_FONT_SIZE = 10;
+export const MAX_CHAT_FONT_SIZE = 24;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   // summaryLanguage / uiLang 不设默认：未显式选择时跟随浏览器语言（lib/i18n.ts defaultUiLang）
   debugMode: true,
+  chatFontSize: DEFAULT_CHAT_FONT_SIZE,
 };

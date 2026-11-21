@@ -4,7 +4,7 @@ import { Markdown } from '@/components/Markdown';
 import { useT } from '@/lib/i18n';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { expandTimestampLinks } from '@/lib/video/pages';
-import type { ChatMessage } from '@/types';
+import { DEFAULT_CHAT_FONT_SIZE, type ChatMessage } from '@/types';
 
 /**
  * 单条消息：用户右对齐气泡，助手左对齐 Markdown；muted 用于压缩纪要等元消息。
@@ -16,6 +16,7 @@ export function MessageBubble({
   muted,
   onEdit,
   videoUrl = null,
+  fontSize = DEFAULT_CHAT_FONT_SIZE,
 }: {
   message: ChatMessage;
   muted?: boolean;
@@ -23,6 +24,8 @@ export function MessageBubble({
   onEdit?: () => void;
   /** 当前会话的视频页 URL（透传给 Markdown 做占位展开与 seek） */
   videoUrl?: string | null;
+  /** 对话字体大小（px）：用户气泡与助手 Markdown 共用（顶栏放大/缩小按钮调整） */
+  fontSize?: number;
 }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
@@ -41,17 +44,20 @@ export function MessageBubble({
   return (
     <div className={cn('group flex flex-col gap-0.5', isUser ? 'items-end' : 'items-start')}>
       {isUser ? (
-        <div className="max-w-[85%] rounded-lg bg-secondary px-2.5 py-1.5 text-sm whitespace-pre-wrap">
+        <div
+          className="max-w-[85%] rounded-lg bg-secondary px-2.5 py-1.5 whitespace-pre-wrap"
+          style={{ fontSize, lineHeight: 1.5 }}
+        >
           {message.content}
         </div>
       ) : (
         <div
           className={cn(
             'max-w-full rounded-lg px-2.5 py-1.5',
-            muted ? 'border border-dashed text-[13px] text-muted-foreground' : 'border',
+            muted ? 'border border-dashed text-muted-foreground' : 'border',
           )}
         >
-          <Markdown text={message.content} videoUrl={videoUrl} />
+          <Markdown text={message.content} videoUrl={videoUrl} style={{ fontSize }} />
         </div>
       )}
 

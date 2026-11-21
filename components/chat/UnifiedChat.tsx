@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CONTEXT_COMPRESSED_MARKER, visibleStartIndex } from '@/lib/conversation';
 import { useT } from '@/lib/i18n';
 import { isVideoPageUrl } from '@/lib/video/pages';
-import type { Conversation } from '@/types';
+import { DEFAULT_CHAT_FONT_SIZE, type Conversation } from '@/types';
 import { MessageBubble } from './MessageBubble';
 
 /**
@@ -21,6 +21,7 @@ export function UnifiedChat({
   streaming,
   streamText,
   disabled,
+  fontSize = DEFAULT_CHAT_FONT_SIZE,
   onPresetSummary,
   onSend,
   onStop,
@@ -35,6 +36,8 @@ export function UnifiedChat({
   streamText: string;
   /** 无活动页面 / 本页生成中 / 提取中 */
   disabled: boolean;
+  /** 对话字体大小（px）：顶栏放大/缩小按钮调整，气泡内用户文本与 Markdown 共用 */
+  fontSize?: number;
   /** 点击快捷气泡「帮我总结网页内容」 */
   onPresetSummary: () => void;
   /** editFrom：编辑重发时，被编辑消息在 visibleMessages 中的下标（从该条截断） */
@@ -143,6 +146,7 @@ export function UnifiedChat({
                 message={m}
                 muted={isDigest}
                 videoUrl={videoUrl}
+                fontSize={fontSize}
                 onEdit={
                   i === lastUserIndex && !streaming
                     ? () => startEdit(i, m.content)
@@ -155,7 +159,11 @@ export function UnifiedChat({
 
         {streaming && (
           <>
-            <MessageBubble message={{ role: 'assistant', content: streamText || '…' }} videoUrl={videoUrl} />
+            <MessageBubble
+              message={{ role: 'assistant', content: streamText || '…' }}
+              videoUrl={videoUrl}
+              fontSize={fontSize}
+            />
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
             </div>
